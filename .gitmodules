@@ -1,0 +1,3 @@
+[submodule "K6502"]
+	path = K6502
+	url = https://github.com/Karl255/K6502Emu
