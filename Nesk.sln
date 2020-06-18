@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NeskUI", "NeskUI\NeskUI.csproj", "{C0B43419-8E69-45C4-A706-FA0700B8298A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nesk.UI", "NeskUI\Nesk.UI.csproj", "{C0B43419-8E69-45C4-A706-FA0700B8298A}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K6502Emu", "K6502\K6502\K6502Emu.csproj", "{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}"
 EndProject

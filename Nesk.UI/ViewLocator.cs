@@ -1,9 +1,9 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using NeskUI.ViewModels;
+using Nesk.UI.ViewModels;
 
-namespace NeskUI
+namespace Nesk.UI
 {
 	public class ViewLocator : IDataTemplate
 	{

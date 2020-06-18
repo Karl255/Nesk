@@ -1,10 +1,10 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using NeskUI.ViewModels;
-using NeskUI.Views;
+using Nesk.UI.ViewModels;
+using Nesk.UI.Views;
 
-namespace NeskUI
+namespace Nesk.UI
 {
 	public class App : Application
 	{

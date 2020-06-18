@@ -2,7 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace NeskUI.Views
+namespace Nesk.UI.Views
 {
 	public class MainWindow : Window
 	{
