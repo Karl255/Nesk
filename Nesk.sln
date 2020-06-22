@@ -3,9 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nesk.UI", "NeskUI\Nesk.UI.csproj", "{C0B43419-8E69-45C4-A706-FA0700B8298A}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K6502Emu", "K6502\K6502\K6502Emu.csproj", "{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesk.UI", "Nesk.UI\Nesk.UI\Nesk.UI.csproj", "{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesk.UI.Gtk", "Nesk.UI\Nesk.UI.Gtk\Nesk.UI.Gtk.csproj", "{8ED1114F-747C-40A2-957B-C8F0265ACABE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesk.UI.Mac", "Nesk.UI\Nesk.UI.Mac\Nesk.UI.Mac.csproj", "{07CD85FE-4ED1-41EA-9161-8BD7563BC340}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesk.UI.Wpf", "Nesk.UI\Nesk.UI.Wpf\Nesk.UI.Wpf.csproj", "{0E70053F-1FA4-4212-8A3F-BA68D92BE7F3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,14 +19,26 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{C0B43419-8E69-45C4-A706-FA0700B8298A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C0B43419-8E69-45C4-A706-FA0700B8298A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C0B43419-8E69-45C4-A706-FA0700B8298A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C0B43419-8E69-45C4-A706-FA0700B8298A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8ED1114F-747C-40A2-957B-C8F0265ACABE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8ED1114F-747C-40A2-957B-C8F0265ACABE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8ED1114F-747C-40A2-957B-C8F0265ACABE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8ED1114F-747C-40A2-957B-C8F0265ACABE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07CD85FE-4ED1-41EA-9161-8BD7563BC340}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07CD85FE-4ED1-41EA-9161-8BD7563BC340}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07CD85FE-4ED1-41EA-9161-8BD7563BC340}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07CD85FE-4ED1-41EA-9161-8BD7563BC340}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E70053F-1FA4-4212-8A3F-BA68D92BE7F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E70053F-1FA4-4212-8A3F-BA68D92BE7F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E70053F-1FA4-4212-8A3F-BA68D92BE7F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E70053F-1FA4-4212-8A3F-BA68D92BE7F3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
