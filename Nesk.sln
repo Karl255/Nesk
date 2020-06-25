@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K6502Emu", "K6502\K6502\K6502Emu.csproj", "{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nesk.UI", "Nesk.UI\Nesk.UI\Nesk.UI.csproj", "{5CDF2306-E7CB-4131-B4ED-95EF048A9C60}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D3997780-1D25-450E-A16A-1FCFFB7821B2} = {D3997780-1D25-450E-A16A-1FCFFB7821B2}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nesk.UI.Gtk", "Nesk.UI\Nesk.UI.Gtk\Nesk.UI.Gtk.csproj", "{8ED1114F-747C-40A2-957B-C8F0265ACABE}"
 EndProject
@@ -19,6 +22,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nesk", "Nesk\Nesk.csproj", 
 	ProjectSection(ProjectDependencies) = postProject
 		{BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA} = {BA8D4568-EAD8-480A-9D43-88BFEA1D3AEA}
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesk.Shared", "Nesk.Shared\Nesk.Shared.csproj", "{D3997780-1D25-450E-A16A-1FCFFB7821B2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,6 +55,10 @@ Global
 		{4877DF46-DFD1-4010-87B2-D3CF0CBD2FAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4877DF46-DFD1-4010-87B2-D3CF0CBD2FAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4877DF46-DFD1-4010-87B2-D3CF0CBD2FAB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3997780-1D25-450E-A16A-1FCFFB7821B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3997780-1D25-450E-A16A-1FCFFB7821B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3997780-1D25-450E-A16A-1FCFFB7821B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3997780-1D25-450E-A16A-1FCFFB7821B2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

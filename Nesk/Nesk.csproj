@@ -5,11 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Eto.Forms" Version="2.5.0" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\K6502\K6502\K6502Emu.csproj" />
+    <ProjectReference Include="..\Nesk.Shared\Nesk.Shared.csproj" />
   </ItemGroup>
 
 </Project>

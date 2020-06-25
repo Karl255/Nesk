@@ -1,6 +1,8 @@
 using Eto.Drawing;
 using Eto.Forms;
 using System;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Nesk.UI
@@ -12,26 +14,17 @@ namespace Nesk.UI
 		private Bitmap DisplayBitmap;
 		private byte[] DisplayBuffer;
 
-		private Nesk Nesk;
-		private UITimer ClockGen;
+		private Nesk NeskEmu;
+		private ChannelReader<byte[]> DataChannelReader;
+		private CancellationTokenSource CancelSource;
 
 		public NeskWindow()
 		{
-			BlankBuffer = Resources.BlankBitmap;
+			BlankBuffer = Shared.Resources.BlankBitmap;
 
-			Nesk = new Nesk();
-			ClockGen = new UITimer();
-			ClockGen.Interval = 0.01;
-			ClockGen.Elapsed += async (s, e) =>
-			{
-				await Task.Run(Nesk.Tick);
-				if (Nesk.IsNewFrameReady)
-				{
-					//TODO: implement drawing the right frame
-					_ = Nesk.GetFrame();
-				}
-				DrawRandomScreen();
-			};
+			NeskEmu = new Nesk();
+			DataChannelReader = NeskEmu.VideoOutputChannelReader;
+			CancelSource = new CancellationTokenSource();
 
 			Title = "Nesk";
 			//TODO: imeplement scaling of window
@@ -40,6 +33,12 @@ namespace Nesk.UI
 			InitMenuBar();
 			InitContent();
 
+			Closing += (s, e) =>
+			{
+				CancelSource.Cancel();
+			};
+
+			RunEmu();
 		}
 
 		private void InitMenuBar()
@@ -55,7 +54,8 @@ namespace Nesk.UI
 						Items =
 						{
 							// /file/open rom
-							new ButtonMenuItem((s,e )=> ClockGen.Start()) { Text = "Open ROM..." },
+							new ButtonMenuItem((s, e) => NeskEmu.Start()) { Text = "Run emulator" },
+							new ButtonMenuItem((s, e) => NeskEmu.Stop()) { Text = "Pause emulator" }
 						}
 					},
 				},
@@ -75,6 +75,15 @@ namespace Nesk.UI
 
 		}
 
+		private async Task RunEmu()
+		{
+			while (true)
+			{
+				DisplayBuffer = await DataChannelReader.ReadAsync(CancelSource.Token);
+				RepaintDisplay();
+			}
+		}
+
 		private void RepaintDisplay()
 		{
 			DisplayBitmap.Dispose();
@@ -84,24 +93,6 @@ namespace Nesk.UI
 		private void ResetDisplay()
 		{
 			DisplayBuffer = (byte[])BlankBuffer.Clone();
-			RepaintDisplay();
-		}
-
-		public void DrawRandomScreen()
-		{
-			int start = DisplayBuffer[0x0A];
-			var rand = new Random();
-
-			for (int y = 0; y < 240; y++)
-			{
-				for (int x = 0; x < 256; x++)
-				{
-					DisplayBuffer[start + (y * 256 + x) * 3 + 0] = (byte)rand.Next();
-					DisplayBuffer[start + (y * 256 + x) * 3 + 1] = (byte)rand.Next();
-					DisplayBuffer[start + (y * 256 + x) * 3 + 2] = (byte)rand.Next();
-				}
-			}
-
 			RepaintDisplay();
 		}
 	}
