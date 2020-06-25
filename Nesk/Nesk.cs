@@ -1,4 +1,5 @@
 ﻿using K6502Emu;
+using System.Threading.Channels;
 
 namespace Nesk
 {
