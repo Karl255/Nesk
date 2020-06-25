@@ -1,6 +1,5 @@
 using Eto.Drawing;
 using Eto.Forms;
-using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -15,16 +14,19 @@ namespace Nesk.UI
 		private byte[] DisplayBuffer;
 
 		private Nesk NeskEmu;
-		private ChannelReader<byte[]> DataChannelReader;
-		private CancellationTokenSource CancelSource;
+		private ChannelReader<byte[]> VideoOutputChannelReader;
+		private CancellationTokenSource NeskCancelSource;
+		private CancellationTokenSource ReaderCancelSource;
+		private bool IsRunning = false;
 
 		public NeskWindow()
 		{
 			BlankBuffer = Shared.Resources.BlankBitmap;
 
 			NeskEmu = new Nesk();
-			DataChannelReader = NeskEmu.VideoOutputChannelReader;
-			CancelSource = new CancellationTokenSource();
+
+			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
+			ReaderCancelSource = new CancellationTokenSource();
 
 			Title = "Nesk";
 			//TODO: imeplement scaling of window
@@ -35,10 +37,11 @@ namespace Nesk.UI
 
 			Closing += (s, e) =>
 			{
-				CancelSource.Cancel();
+				StopEmu();
+				ReaderCancelSource.Cancel();
 			};
 
-			RunEmu();
+			RunVideoReader();
 		}
 
 		private void InitMenuBar()
@@ -54,8 +57,9 @@ namespace Nesk.UI
 						Items =
 						{
 							// /file/open rom
-							new ButtonMenuItem((s, e) => NeskEmu.Start()) { Text = "Run emulator" },
-							new ButtonMenuItem((s, e) => NeskEmu.Stop()) { Text = "Pause emulator" }
+							new ButtonMenuItem((s, e) => StartEmu()) { Text = "Run emulator" },
+							new ButtonMenuItem((s, e) => StopEmu()) { Text = "Pause emulator" },
+							new ButtonMenuItem((s, e) => ClearDisplay()) { Text = "Clear display" }
 						}
 					},
 				},
@@ -75,12 +79,31 @@ namespace Nesk.UI
 
 		}
 
-		private async Task RunEmu()
+		private async Task RunVideoReader()
 		{
 			while (true)
 			{
-				DisplayBuffer = await DataChannelReader.ReadAsync(CancelSource.Token);
+				DisplayBuffer = await VideoOutputChannelReader.ReadAsync(ReaderCancelSource.Token);
 				RepaintDisplay();
+			}
+		}
+
+		private void StartEmu()
+		{
+			if (!IsRunning)
+			{
+				IsRunning = true;
+				NeskCancelSource = new CancellationTokenSource();
+				Task.Run(() => NeskEmu.Run(NeskCancelSource.Token));
+			}
+		}
+
+		private void StopEmu()
+		{
+			if (IsRunning)
+			{
+				IsRunning = false;
+				NeskCancelSource.Cancel();
 			}
 		}
 
@@ -90,7 +113,7 @@ namespace Nesk.UI
 			DisplayImageView.Image = DisplayBitmap = new Bitmap(DisplayBuffer);
 		}
 
-		private void ResetDisplay()
+		private void ClearDisplay()
 		{
 			DisplayBuffer = (byte[])BlankBuffer.Clone();
 			RepaintDisplay();

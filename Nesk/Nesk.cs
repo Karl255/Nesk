@@ -1,8 +1,9 @@
 ﻿using K6502Emu;
 using System;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using System.Timers;
 
 namespace Nesk
 {
@@ -12,8 +13,8 @@ namespace Nesk
 
 		private Channel<byte[]> VideoOutputChannel;
 		private K6502 Cpu;
-		private Timer ClockGen;
 		private readonly byte[] BlankBuffer;
+		private long TickCounter = 0;
 
 		public Nesk()
 		{
@@ -32,18 +33,33 @@ namespace Nesk
 				SingleReader = true
 			});
 
-			ClockGen = new Timer(0.000558659217877095);
-			ClockGen.Elapsed += async (s, e) =>
-			{
-				await Tick();
-			};
 		}
 
-		public void Start() => ClockGen.Start();
-		public void Stop() => ClockGen.Stop();
+		public async Task Run(CancellationToken token)
+		{
+			while (!token.IsCancellationRequested)
+			{
+				long t1 = Stopwatch.GetTimestamp();
+				await Tick();
+
+				/*
+				 * 0.5 ms delay, although it should be 0.558659217877095 us (microseconds)
+				 * the method returns the amount of ticks counted at a frequency of 10 MHz
+				 * (at least on my machine, TODO: make this universal), so every tick is
+				 * 100 ns or 0.1 us
+				 */
+				while (Stopwatch.GetTimestamp() - t1 < 5)
+					Thread.Sleep(0);
+			}
+		}
 
 		public async Task Tick()
 		{
+			TickCounter++;
+			if (TickCounter < 16_639) //create new frames at ~60 Hz
+				return;
+
+			TickCounter = 0;
 			//TODO: implement proper ticking
 			//Cpu.Tick();
 
