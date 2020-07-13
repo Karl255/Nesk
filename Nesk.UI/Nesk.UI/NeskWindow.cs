@@ -41,7 +41,7 @@ namespace Nesk.UI
 				ReaderCancelSource.Cancel();
 			};
 
-			RunVideoReader();
+			RunVideoReaderAsync();
 		}
 
 		private void InitMenuBar()
@@ -79,7 +79,7 @@ namespace Nesk.UI
 
 		}
 
-		private async Task RunVideoReader()
+		private async Task RunVideoReaderAsync()
 		{
 			while (true)
 			{
@@ -94,7 +94,7 @@ namespace Nesk.UI
 			{
 				IsRunning = true;
 				NeskCancelSource = new CancellationTokenSource();
-				Task.Run(() => NeskEmu.Run(NeskCancelSource.Token));
+				Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token));
 			}
 		}
 

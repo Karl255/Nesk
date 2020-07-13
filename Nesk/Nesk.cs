@@ -35,12 +35,12 @@ namespace Nesk
 
 		}
 
-		public async Task Run(CancellationToken token)
+		public async Task RunAsync(CancellationToken token)
 		{
 			while (!token.IsCancellationRequested)
 			{
 				long t1 = Stopwatch.GetTimestamp();
-				await Tick();
+				await TickAsync();
 
 				/*
 				 * 0.5 ms delay, although it should be 0.558659217877095 us (microseconds)
@@ -53,7 +53,7 @@ namespace Nesk
 			}
 		}
 
-		public async Task Tick()
+		public async Task TickAsync()
 		{
 			TickCounter++;
 			if (TickCounter < 16_639) //create new frames at ~60 Hz
