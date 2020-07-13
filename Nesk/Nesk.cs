@@ -16,7 +16,7 @@ namespace Nesk
 		private readonly byte[] BlankBuffer;
 		private long TickCounter = 0;
 
-		public Nesk()
+		public Nesk(string romPath)
 		{
 			BlankBuffer = Shared.Resources.BlankBitmap;
 
@@ -72,9 +72,10 @@ namespace Nesk
 			{
 				for (int x = 0; x < 256; x++)
 				{
-					buffer[start + (y * 256 + x) * 3 + 0] = (byte)rand.Next();
-					buffer[start + (y * 256 + x) * 3 + 1] = (byte)rand.Next();
-					buffer[start + (y * 256 + x) * 3 + 2] = (byte)rand.Next();
+					byte v = (byte)rand.Next();
+					buffer[start + (y * 256 + x) * 3 + 0] = v;
+					buffer[start + (y * 256 + x) * 3 + 1] = v;
+					buffer[start + (y * 256 + x) * 3 + 2] = v;
 				}
 			}
 

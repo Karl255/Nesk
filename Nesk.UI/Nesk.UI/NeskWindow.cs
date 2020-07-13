@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Nesk.UI
 {
-	public partial class NeskWindow : Form
+	public class NeskWindow : Form
 	{
 		private readonly byte[] BlankBuffer;
 		private ImageView DisplayImageView;
@@ -16,32 +16,26 @@ namespace Nesk.UI
 		private Nesk NeskEmu;
 		private ChannelReader<byte[]> VideoOutputChannelReader;
 		private CancellationTokenSource NeskCancelSource;
-		private CancellationTokenSource ReaderCancelSource;
+		private CancellationTokenSource VideoReaderCancelSource;
 		private bool IsRunning = false;
+		private string ROMPath = null;
 
 		public NeskWindow()
 		{
 			BlankBuffer = Shared.Resources.BlankBitmap;
 
-			NeskEmu = new Nesk();
-
-			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
-			ReaderCancelSource = new CancellationTokenSource();
-
 			Title = "Nesk";
 			//TODO: imeplement scaling of window
 			ClientSize = new Size(256, 240);
-
+			
 			InitMenuBar();
 			InitContent();
 
 			Closing += (s, e) =>
 			{
-				StopEmu();
-				ReaderCancelSource.Cancel();
+				StopEmulation();
+				VideoReaderCancelSource?.Cancel();
 			};
-
-			RunVideoReaderAsync();
 		}
 
 		private void InitMenuBar()
@@ -50,20 +44,20 @@ namespace Nesk.UI
 			{
 				Items =
 				{
-					// /file
+					// /File/
 					new ButtonMenuItem
 					{
 						Text = "&File",
 						Items =
 						{
-							// /file/open rom
-							new ButtonMenuItem((s, e) => StartEmu()) { Text = "Run emulator" },
-							new ButtonMenuItem((s, e) => StopEmu()) { Text = "Pause emulator" },
-							new ButtonMenuItem((s, e) => ClearDisplay()) { Text = "Clear display" }
+							new ButtonMenuItem((s, e) => OpenROM()) { Text = "Open ROM..." },
+							new ButtonMenuItem((s, e) => TogglePause()) { Text = "Pause" }
 						}
 					},
 				},
+				// /File/Exit
 				QuitItem = new ButtonMenuItem((s, e) => Application.Instance.Quit()) { Text = "&Exit" },
+				// /Help/About
 				AboutItem = new ButtonMenuItem() { Text = "About" } //TODO: add about info
 			};
 		}
@@ -74,37 +68,81 @@ namespace Nesk.UI
 			Content = DisplayImageView = new ImageView
 			{
 				Image = DisplayBitmap = new Bitmap(DisplayBuffer),
-				Size = new Size(256, 240)
+				Size = new Size(256, 240),
+				
 			};
 
 		}
 
 		private async Task RunVideoReaderAsync()
 		{
-			while (true)
+			var token = VideoReaderCancelSource.Token;
+			while (!token.IsCancellationRequested)
 			{
-				DisplayBuffer = await VideoOutputChannelReader.ReadAsync(ReaderCancelSource.Token);
+				DisplayBuffer = await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token);
 				RepaintDisplay();
 			}
 		}
 
-		private void StartEmu()
+		private void OpenROM()
 		{
-			if (!IsRunning)
+			var d = new OpenFileDialog
 			{
-				IsRunning = true;
-				NeskCancelSource = new CancellationTokenSource();
-				Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token));
+				CurrentFilter = new FileFilter("NES ROM files", ".nes", ".unf")
+			};
+
+			if (d.ShowDialog(this) == DialogResult.Ok)
+			{
+				ROMPath = d.FileName;
+				ResetEmulationHard();
 			}
 		}
 
-		private void StopEmu()
+		private void ResetEmulationHard()
+		{
+			if (ROMPath is null)
+				return;
+
+			if (IsRunning)
+				StopEmulation();
+
+			NeskEmu = new Nesk(ROMPath);
+			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
+			VideoReaderCancelSource = new CancellationTokenSource();
+
+			RunVideoReaderAsync();
+			StartEmulation();
+		}
+
+		private void StartEmulation()
 		{
 			if (IsRunning)
-			{
-				IsRunning = false;
-				NeskCancelSource.Cancel();
-			}
+				return;
+
+			IsRunning = true;
+			NeskCancelSource = new CancellationTokenSource();
+			Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token));
+		}
+
+		private void StopEmulation()
+		{
+			if (!IsRunning)
+				return;
+
+			IsRunning = false;
+			NeskCancelSource.Cancel();
+		}
+
+		private void TogglePause()
+		{
+			//if no rom is selected (this is the case only after the program starts)
+			if (ROMPath is null)
+				return;
+
+			if (IsRunning)
+				StopEmulation();
+			else
+				StartEmulation();
 		}
 
 		private void RepaintDisplay()
