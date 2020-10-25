@@ -73,9 +73,9 @@ namespace Nesk
 				for (int x = 0; x < 256; x++)
 				{
 					byte v = (byte)rand.Next();
-					buffer[start + (y * 256 + x) * 3 + 0] = v;
-					buffer[start + (y * 256 + x) * 3 + 1] = v;
-					buffer[start + (y * 256 + x) * 3 + 2] = v;
+					buffer[start + (y * 256 + x) * 3 + 0] = v; //B
+					buffer[start + (y * 256 + x) * 3 + 1] = v; //G
+					buffer[start + (y * 256 + x) * 3 + 2] = v; //R
 				}
 			}
 

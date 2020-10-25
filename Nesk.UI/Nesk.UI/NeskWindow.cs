@@ -1,5 +1,6 @@
 using Eto.Drawing;
 using Eto.Forms;
+using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -8,7 +9,7 @@ namespace Nesk.UI
 {
 	public class NeskWindow : Form
 	{
-		private readonly byte[] BlankBuffer;
+		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
 		private ImageView DisplayImageView;
 		private Bitmap DisplayBitmap;
 		private byte[] DisplayBuffer;
@@ -22,8 +23,6 @@ namespace Nesk.UI
 
 		public NeskWindow()
 		{
-			BlankBuffer = Shared.Resources.BlankBitmap;
-
 			Title = "Nesk";
 			//TODO: imeplement scaling of window
 			ClientSize = new Size(256, 240);
@@ -50,8 +49,8 @@ namespace Nesk.UI
 						Text = "&File",
 						Items =
 						{
-							new ButtonMenuItem((s, e) => OpenROM()) { Text = "Open ROM..." },
-							new ButtonMenuItem((s, e) => TogglePause()) { Text = "Pause" }
+							new ButtonMenuItem(OpenROM) { Text = "Open ROM..." },
+							new ButtonMenuItem(TogglePause) { Text = "Pause" }
 						}
 					},
 				},
@@ -74,7 +73,7 @@ namespace Nesk.UI
 
 		}
 
-		private async Task RunVideoReaderAsync()
+		private async void RunVideoReaderAsync()
 		{
 			var token = VideoReaderCancelSource.Token;
 			while (!token.IsCancellationRequested)
@@ -84,7 +83,7 @@ namespace Nesk.UI
 			}
 		}
 
-		private void OpenROM()
+		private void OpenROM(object source, EventArgs e)
 		{
 			var d = new OpenFileDialog
 			{
@@ -133,7 +132,7 @@ namespace Nesk.UI
 			NeskCancelSource.Cancel();
 		}
 
-		private void TogglePause()
+		private void TogglePause(object source, EventArgs e)
 		{
 			//if no rom is selected (this is the case only after the program starts)
 			if (ROMPath is null)
