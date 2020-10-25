@@ -1,9 +1,7 @@
 using Eto.Drawing;
 using Eto.Forms;
-using System;
 using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Nesk.UI
 {
@@ -18,7 +16,7 @@ namespace Nesk.UI
 		private ChannelReader<byte[]> VideoOutputChannelReader;
 		private CancellationTokenSource NeskCancelSource;
 		private CancellationTokenSource VideoReaderCancelSource;
-		private bool IsRunning = false;
+		private bool IsRunning = false; // TODO: delegate this functionality to Nesk.Nesk
 		private string ROMPath = null;
 
 		public NeskWindow()
@@ -26,7 +24,7 @@ namespace Nesk.UI
 			Title = "Nesk";
 			//TODO: imeplement scaling of window
 			ClientSize = new Size(256, 240);
-			
+
 			InitMenuBar();
 			InitContent();
 
@@ -49,8 +47,8 @@ namespace Nesk.UI
 						Text = "&File",
 						Items =
 						{
-							new ButtonMenuItem(OpenROM) { Text = "Open ROM..." },
-							new ButtonMenuItem(TogglePause) { Text = "Pause" }
+							new ButtonMenuItem((s, e) => OpenROM()) { Text = "Open ROM..." },
+							new ButtonMenuItem((s, e) => TogglePause()) { Text = "Pause" }
 						}
 					},
 				},
@@ -68,22 +66,25 @@ namespace Nesk.UI
 			{
 				Image = DisplayBitmap = new Bitmap(DisplayBuffer),
 				Size = new Size(256, 240),
-				
 			};
-
 		}
 
+		/// <summary>
+		/// This method waits until the next frame is ready and when it is, it repaints the display with it and starts over. Runs permanently, until canceled using VideoReaderCancelSource.
+		/// </summary>
 		private async void RunVideoReaderAsync()
 		{
 			var token = VideoReaderCancelSource.Token;
 			while (!token.IsCancellationRequested)
 			{
-				DisplayBuffer = await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token);
-				RepaintDisplay();
+				RepaintDisplay(await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token));
 			}
 		}
 
-		private void OpenROM(object source, EventArgs e)
+		/// <summary>
+		/// Opens a dialog window in which the user selects the ROM file. Automatically hard restarts the emulation on successful file choice.
+		/// </summary>
+		private void OpenROM()
 		{
 			var d = new OpenFileDialog
 			{
@@ -92,14 +93,18 @@ namespace Nesk.UI
 
 			if (d.ShowDialog(this) == DialogResult.Ok)
 			{
+				ClearDisplay();
 				ROMPath = d.FileName;
 				ResetEmulationHard();
 			}
 		}
 
+		/// <summary>
+		/// Stops the emulation, creates a new Nesk object and starts that new one.
+		/// </summary>
 		private void ResetEmulationHard()
 		{
-			if (ROMPath is null)
+			if (string.IsNullOrEmpty(ROMPath))
 				return;
 
 			if (IsRunning)
@@ -113,6 +118,9 @@ namespace Nesk.UI
 			StartEmulation();
 		}
 
+		/// <summary>
+		/// Starts the emulation if it isn't already running.
+		/// </summary>
 		private void StartEmulation()
 		{
 			if (IsRunning)
@@ -120,22 +128,28 @@ namespace Nesk.UI
 
 			IsRunning = true;
 			NeskCancelSource = new CancellationTokenSource();
-			Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token));
+			NeskCancelSource.Token.Register(() => IsRunning = false);
+			NeskEmu.RunAsync(NeskCancelSource.Token);
 		}
 
+		/// <summary>
+		/// Stops the emulation if it's running.
+		/// </summary>
 		private void StopEmulation()
 		{
 			if (!IsRunning)
 				return;
 
-			IsRunning = false;
 			NeskCancelSource.Cancel();
 		}
 
-		private void TogglePause(object source, EventArgs e)
+		/// <summary>
+		/// Toggles the running state of the emulation.
+		/// </summary>
+		private void TogglePause()
 		{
 			//if no rom is selected (this is the case only after the program starts)
-			if (ROMPath is null)
+			if (string.IsNullOrEmpty(ROMPath))
 				return;
 
 			if (IsRunning)
@@ -144,16 +158,19 @@ namespace Nesk.UI
 				StartEmulation();
 		}
 
-		private void RepaintDisplay()
+		/// <summary>
+		/// Repaint the display with the specified frame buffer.
+		/// </summary>
+		/// <param name="frameBuffer">Array of bytes containing the bitmap image data of the frame.</param>
+		private void RepaintDisplay(byte[] frameBuffer)
 		{
 			DisplayBitmap.Dispose();
-			DisplayImageView.Image = DisplayBitmap = new Bitmap(DisplayBuffer);
+			DisplayImageView.Image = DisplayBitmap = new Bitmap(frameBuffer);
 		}
 
-		private void ClearDisplay()
-		{
-			DisplayBuffer = (byte[])BlankBuffer.Clone();
-			RepaintDisplay();
-		}
+		/// <summary>
+		///	Repaints the display with a blank buffer (black screen).
+		/// </summary>
+		private void ClearDisplay() => RepaintDisplay((byte[])BlankBuffer.Clone());
 	}
 }

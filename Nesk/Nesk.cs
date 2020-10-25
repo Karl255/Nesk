@@ -9,6 +9,9 @@ namespace Nesk
 {
 	public sealed class Nesk
 	{
+		/// <summary>
+		/// The ChannelReader used to retrieve the frame buffer (byte array containing a bitmap image) for each frame.
+		/// </summary>
 		public ChannelReader<byte[]> VideoOutputChannelReader => VideoOutputChannel.Reader;
 
 		private Channel<byte[]> VideoOutputChannel;
@@ -35,7 +38,11 @@ namespace Nesk
 
 		}
 
-		public async Task RunAsync(CancellationToken token)
+		/// <summary>
+		/// Calling this method starts an automatic calling of TickAsync every ~0.5 us forever, until canceled using the specified token.
+		/// </summary>
+		/// <param name="token">The token with which the ticking is stopped.</param>
+		public async void RunAsync(CancellationToken token)
 		{
 			while (!token.IsCancellationRequested)
 			{
@@ -43,7 +50,7 @@ namespace Nesk
 				await TickAsync();
 
 				/*
-				 * 0.5 ms delay, although it should be 0.558659217877095 us (microseconds)
+				 * 0.5 us delay, although it should be 0.558659217877095 us (microseconds)
 				 * the method returns the amount of ticks counted at a frequency of 10 MHz
 				 * (at least on my machine, TODO: make this universal), so every tick is
 				 * 100 ns or 0.1 us
@@ -53,6 +60,10 @@ namespace Nesk
 			}
 		}
 
+		/// <summary>
+		/// Executes one tick of the machine asynchronously.
+		/// </summary>
+		/// <returns>A <see cref="System.Threading.Tasks.Task"/> that represents the asynchronous ticking operation.</returns>
 		public async Task TickAsync()
 		{
 			TickCounter++;
