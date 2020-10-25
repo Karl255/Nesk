@@ -1,7 +1,10 @@
 using Eto.Drawing;
 using Eto.Forms;
+using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Nesk.UI
 {
@@ -16,7 +19,6 @@ namespace Nesk.UI
 		private ChannelReader<byte[]> VideoOutputChannelReader;
 		private CancellationTokenSource NeskCancelSource;
 		private CancellationTokenSource VideoReaderCancelSource;
-		private bool IsRunning = false; // TODO: delegate this functionality to Nesk.Nesk
 		private string ROMPath = null;
 
 		public NeskWindow()
@@ -75,10 +77,14 @@ namespace Nesk.UI
 		private async void RunVideoReaderAsync()
 		{
 			var token = VideoReaderCancelSource.Token;
-			while (!token.IsCancellationRequested)
+			try
 			{
-				RepaintDisplay(await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token));
+				while (!token.IsCancellationRequested)
+				{
+					RepaintDisplay(await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token));
+				}
 			}
+			catch (OperationCanceledException) { }
 		}
 
 		/// <summary>
@@ -86,17 +92,32 @@ namespace Nesk.UI
 		/// </summary>
 		private void OpenROM()
 		{
-			var d = new OpenFileDialog
+			var dialog = new OpenFileDialog
 			{
 				CurrentFilter = new FileFilter("NES ROM files", ".nes", ".unf")
 			};
 
-			if (d.ShowDialog(this) == DialogResult.Ok)
+			if (dialog.ShowDialog(this) == DialogResult.Ok)
 			{
 				ClearDisplay();
-				ROMPath = d.FileName;
+				ROMPath = dialog.FileName;
 				ResetEmulationHard();
 			}
+		}
+
+		private void CreateEmulator()
+		{
+			if (NeskEmu != null)
+			{
+				VideoReaderCancelSource.Cancel();
+				VideoReaderCancelSource.Dispose();
+				// in the future, call NeskEmu.Dispose() if it ever gets added
+			}
+
+			NeskEmu = new Nesk(ROMPath);
+			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
+			VideoReaderCancelSource = new CancellationTokenSource();
+			RunVideoReaderAsync();
 		}
 
 		/// <summary>
@@ -107,14 +128,10 @@ namespace Nesk.UI
 			if (string.IsNullOrEmpty(ROMPath))
 				return;
 
-			if (IsRunning)
+			if (NeskEmu?.IsRunning ?? false)
 				StopEmulation();
 
-			NeskEmu = new Nesk(ROMPath);
-			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
-			VideoReaderCancelSource = new CancellationTokenSource();
-
-			RunVideoReaderAsync();
+			CreateEmulator();
 			StartEmulation();
 		}
 
@@ -123,13 +140,11 @@ namespace Nesk.UI
 		/// </summary>
 		private void StartEmulation()
 		{
-			if (IsRunning)
+			if (NeskEmu.IsRunning)
 				return;
 
-			IsRunning = true;
 			NeskCancelSource = new CancellationTokenSource();
-			NeskCancelSource.Token.Register(() => IsRunning = false);
-			NeskEmu.RunAsync(NeskCancelSource.Token);
+			Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token)); // NOTE: the Task.Run is needed
 		}
 
 		/// <summary>
@@ -137,7 +152,7 @@ namespace Nesk.UI
 		/// </summary>
 		private void StopEmulation()
 		{
-			if (!IsRunning)
+			if (!NeskEmu.IsRunning)
 				return;
 
 			NeskCancelSource.Cancel();
@@ -152,7 +167,7 @@ namespace Nesk.UI
 			if (string.IsNullOrEmpty(ROMPath))
 				return;
 
-			if (IsRunning)
+			if (NeskEmu.IsRunning)
 				StopEmulation();
 			else
 				StartEmulation();

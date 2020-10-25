@@ -13,6 +13,7 @@ namespace Nesk
 		/// The ChannelReader used to retrieve the frame buffer (byte array containing a bitmap image) for each frame.
 		/// </summary>
 		public ChannelReader<byte[]> VideoOutputChannelReader => VideoOutputChannel.Reader;
+		public bool IsRunning { private set; get; } = false;
 
 		private Channel<byte[]> VideoOutputChannel;
 		private K6502 Cpu;
@@ -35,7 +36,6 @@ namespace Nesk
 				SingleWriter = true,
 				SingleReader = true
 			});
-
 		}
 
 		/// <summary>
@@ -44,6 +44,9 @@ namespace Nesk
 		/// <param name="token">The token with which the ticking is stopped.</param>
 		public async void RunAsync(CancellationToken token)
 		{
+			IsRunning = true;
+			token.Register(() => IsRunning = false);
+
 			while (!token.IsCancellationRequested)
 			{
 				long t1 = Stopwatch.GetTimestamp();
@@ -63,8 +66,8 @@ namespace Nesk
 		/// <summary>
 		/// Executes one tick of the machine asynchronously.
 		/// </summary>
-		/// <returns>A <see cref="System.Threading.Tasks.Task"/> that represents the asynchronous ticking operation.</returns>
-		public async Task TickAsync()
+		/// <returns>A <see cref="Task"/> that represents the asynchronous ticking operation.</returns>
+		private async Task TickAsync()
 		{
 			TickCounter++;
 			if (TickCounter < 16_639) //create new frames at ~60 Hz
