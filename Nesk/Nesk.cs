@@ -24,7 +24,7 @@ namespace Nesk
 		{
 			BlankBuffer = Shared.Resources.BlankBitmap;
 
-			var bus = new Bus()
+			var bus = new Bus(0xffff + 1) // 64 kB, but this really doesn't matter
 			{
 				//TODO: add components
 			};
