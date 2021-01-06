@@ -94,7 +94,7 @@ namespace Nesk.UI
 		{
 			var dialog = new OpenFileDialog
 			{
-				CurrentFilter = new FileFilter("NES ROM files", ".nes", ".unf")
+				CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/)
 			};
 
 			if (dialog.ShowDialog(this) == DialogResult.Ok)
