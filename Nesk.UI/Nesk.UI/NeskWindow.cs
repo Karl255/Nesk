@@ -152,10 +152,8 @@ namespace Nesk.UI
 		/// </summary>
 		private void StopEmulation()
 		{
-			if (!NeskEmu.IsRunning)
-				return;
-
-			NeskCancelSource.Cancel();
+			if (NeskEmu != null && NeskEmu.IsRunning)
+				NeskCancelSource.Cancel();
 		}
 
 		/// <summary>

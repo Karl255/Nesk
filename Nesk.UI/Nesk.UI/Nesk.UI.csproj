@@ -1,18 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	
-  <PropertyGroup>
-    <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
-    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
-    <OutputType>Library</OutputType>
-  </PropertyGroup>
-  
-  <ItemGroup>
-    <PackageReference Include="Eto.Forms" Version="2.5.0" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\..\Nesk.Shared\Nesk.Shared.csproj" />
-    <ProjectReference Include="..\..\Nesk\Nesk.csproj" />
-  </ItemGroup>
-  
+
+	<PropertyGroup>
+		<TargetFramework>net5.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Eto.Forms" Version="2.5.9" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Nesk.Shared\Nesk.Shared.csproj" />
+		<ProjectReference Include="..\..\Nesk\Nesk.csproj" />
+	</ItemGroup>
+
 </Project>

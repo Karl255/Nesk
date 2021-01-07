@@ -8,7 +8,7 @@ namespace Nesk.UI.Gtk
 		[STAThread]
 		public static void Main(string[] args)
 		{
-			new Application(Eto.Platforms.Wpf).Run(new NeskWindow());
+			new Application(Eto.Platforms.Gtk).Run(new NeskWindow());
 		}
 	}
 }

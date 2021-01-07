@@ -8,7 +8,7 @@ namespace Nesk.UI.Mac
 		[STAThread]
 		public static void Main(string[] args)
 		{
-			new Application(Eto.Platforms.Wpf).Run(new NeskWindow());
+			new Application(Eto.Platforms.Mac64).Run(new NeskWindow());
 		}
 	}
 }
