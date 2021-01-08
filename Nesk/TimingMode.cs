@@ -1,4 +1,4 @@
-﻿namespace Nesk.Cartridge
+﻿namespace Nesk
 {
 	public enum TimingMode
 	{

@@ -1,6 +1,6 @@
-﻿namespace Nesk.Cartridge
+﻿namespace Nesk
 {
-	internal enum MirroringType
+	public enum MirroringMode
 	{
 		Horizontal,
 		Vertical,

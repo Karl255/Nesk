@@ -1,9 +1,9 @@
 ﻿using System;
 using Nesk.Shared;
 
-namespace Nesk.Cartridge
+namespace Nesk
 {
-	internal class Cartridge
+	public class Cartridge
 	{
 		public byte[] OriginalFileData { get; init; }
 
@@ -29,7 +29,7 @@ namespace Nesk.Cartridge
 		public int Mapper { get; private set; }
 		public int Submapper { get; private set; }
 
-		public MirroringType NametableMirroring { get; private set; }
+		public MirroringMode NametableMirroring { get; private set; }
 		public ConsoleType ConsoleType { get; private set; }
 		public TimingMode TimingMode { get; private set; }
 		public bool HasBusConflicts { get; private set; }
@@ -138,11 +138,29 @@ namespace Nesk.Cartridge
 			PrgRomSize |= fileData[4];
 			ChrRomSize |= fileData[5];
 
+			// if ROM size is 1111 xxxx xxxx
+			if ((PrgRomSize & 0xf00) == 0xf00)
+				// format: 1111 EEEE EEMM
+				// final value: = 2^E * (M * 2 + 1) B
+				PrgRomSize = (int)Math.Pow(2, (PrgRomSize & 0x0fc) >> 2) * (PrgRomSize * 2 + 1);
+			else
+				// final value is in 16k units (gets converted to B)
+				PrgRomSize *= 16 * 1024;
+
+			// if ROM size is 1111 xxxx xxxx
+			if ((ChrRomSize & 0xf00) == 0xf00)
+				// format: 1111 EEEE EEMM
+				// final value: = 2^E * (M * 2 + 1) B
+				ChrRomSize = (int)Math.Pow(2, (ChrRomSize & 0x0fc) >> 2) * (ChrRomSize * 2 + 1);
+			else
+				// final value is in 8k units (gets converted to B)
+				ChrRomSize *= 8 * 1024;
+
 			NametableMirroring = (fileData[6].GetBit(3), fileData[6].GetBit(1)) switch
 			{
-				(0, 0) => MirroringType.Horizontal,
-				(0, 1) => MirroringType.Vertical,
-				(1, _) => MirroringType.FourScreen,
+				(0, 0) => MirroringMode.Horizontal,
+				(0, 1) => MirroringMode.Vertical,
+				(1, _) => MirroringMode.FourScreen,
 				_ => throw new Exception()
 			};
 
@@ -162,12 +180,12 @@ namespace Nesk.Cartridge
 				dataStart += 512;
 			}
 
-			int size = 8 * 1024 * PrgRomSize;
+			int size = PrgRomSize;
 			PrgRom = new byte[size];
 			Array.Copy(fileData, dataStart, PrgRom, 0, size);
 			dataStart += size;
 
-			size = 8 * 1024 * ChrRomSize;
+			size = ChrRomSize;
 			ChrRom = new byte[size];
 			Array.Copy(fileData, dataStart, ChrRom, 0, size);
 			dataStart += size;

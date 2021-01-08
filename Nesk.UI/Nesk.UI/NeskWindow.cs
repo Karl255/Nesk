@@ -94,6 +94,7 @@ namespace Nesk.UI
 		{
 			var dialog = new OpenFileDialog
 			{
+				// NOTE: crashes on linux for some reason, error message is something about "index out of range"
 				CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/)
 			};
 
