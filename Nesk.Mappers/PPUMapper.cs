@@ -4,8 +4,8 @@ namespace Nesk.Mappers
 {
 	public abstract class PPUMapper : IAddressable<byte>
 	{
-		private byte[] nametable = new byte[2048];
-		private byte[] palettes = new byte[256];
+		private readonly byte[] nametable = new byte[2048];
+		private readonly byte[] palettes = new byte[256];
 		//private PPU PPU = new PPU();
 		//private APU APU = new APU();
 

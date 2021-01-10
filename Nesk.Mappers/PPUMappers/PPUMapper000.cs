@@ -4,7 +4,7 @@ namespace Nesk.Mappers.PPUMappers
 {
 	public class PPUMapper000 : PPUMapper
 	{
-		private byte[] ChrRom;
+		private readonly byte[] ChrRom;
 
 		public PPUMapper000(Cartridge cartridge)
 		{

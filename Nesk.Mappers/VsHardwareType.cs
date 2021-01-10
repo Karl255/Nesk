@@ -1,4 +1,4 @@
-﻿namespace Nesk
+﻿namespace Nesk.Mappers
 {
 	// http://wiki.nesdev.com/w/index.php/Vs._System
 	public enum VsHardwareType

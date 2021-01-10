@@ -1,4 +1,4 @@
-﻿namespace Nesk
+﻿namespace Nesk.Mappers
 {
 	public enum ExpansinDevice
 	{

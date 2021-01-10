@@ -7,7 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="..\K6502\K6502\K6502Emu.csproj" />
     <ProjectReference Include="..\Nesk.Shared\Nesk.Shared.csproj" />
-    <ProjectReference Include="..\Nesk\Nesk.csproj" />
   </ItemGroup>
 
 </Project>

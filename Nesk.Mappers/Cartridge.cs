@@ -1,7 +1,10 @@
 ﻿using System;
 using Nesk.Shared;
+using Nesk.Mappers.CPUMappers;
+using Nesk.Mappers.PPUMappers;
+using K6502Emu;
 
-namespace Nesk
+namespace Nesk.Mappers
 {
 	public class Cartridge
 	{
@@ -26,7 +29,7 @@ namespace Nesk
 		public int ChrRamSize { get; private set; }
 		public int ChrNvramSize { get; private set; }
 
-		public int Mapper { get; private set; }
+		public int MapperNumber { get; private set; }
 		public int Submapper { get; private set; }
 
 		public MirroringMode NametableMirroring { get; private set; }
@@ -37,6 +40,9 @@ namespace Nesk
 		public VsPPUType VsPPUType { get; private set; }
 		public VsHardwareType VsHardwareType { get; private set; }
 		public ExpansinDevice DefaultExpansionDevice { get; private set; }
+
+		public CPUMapper CPUMapper { get; private set; }
+		public PPUMapper PPUMapper { get; private set; }
 
 		/// <summary>
 		/// Creates a new <see cref="Cartridge"/> object from the specified ROM file contents.
@@ -82,7 +88,7 @@ namespace Nesk
 			// http://wiki.nesdev.com/w/index.php/NES_2.0
 
 			// nibble 2 of mapper number (8..11)
-			Mapper = (fileData[8] & 0x0f) << 8;
+			MapperNumber = (fileData[8] & 0x0f) << 8;
 			Submapper = (fileData[8] & 0xf0) >> 4;
 
 			PrgRomSize = (fileData[9] & 0x0f) << 8;
@@ -167,7 +173,7 @@ namespace Nesk
 			HasPrgRam = fileData[6].GetBit(1) == 1;
 			HasTrainer = fileData[6].GetBit(2) == 1;
 
-			Mapper |= (fileData[6] & 0xf0) | ((fileData[7] & 0xf0) >> 4);
+			MapperNumber |= (fileData[6] & 0xf0) | ((fileData[7] & 0xf0) >> 4);
 
 			// data after the header
 
@@ -196,8 +202,18 @@ namespace Nesk
 			{
 				TrailingData = new byte[trailingLength];
 				Array.Copy(fileData, dataStart, TrailingData, 0, trailingLength);
-				dataStart += trailingLength;
 			}
+		}
+
+		public Cartridge Map(IAddressable<byte> ppu, IAddressable<byte> apu)
+		{
+			(CPUMapper, PPUMapper) = MapperNumber switch
+			{
+				000 => (new CPUMapper000(ppu, apu, this), new PPUMapper000(this)),
+				_ => throw new NotImplementedException($"Mapper {MapperNumber:000} is not supported.")
+			};
+
+			return this;
 		}
 	}
 }

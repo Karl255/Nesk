@@ -1,16 +1,16 @@
 ﻿using System;
+using K6502Emu;
 
 namespace Nesk.Mappers.CPUMappers
 {
 	public class CPUMapper000 : CPUMapper
 	{
-		private byte[] PrgRom;
-		private int PrgRomAddressMask;
-		private byte[] PrgRam;
-		private int PrgRamAddressMask;
+		private readonly byte[] PrgRom;
+		private readonly int PrgRomAddressMask;
+		private readonly byte[] PrgRam;
+		private readonly int PrgRamAddressMask;
 
-
-		public CPUMapper000(Cartridge cartridge)
+		public CPUMapper000(IAddressable<byte> ppu, IAddressable<byte> apu, Cartridge cartridge) : base(ppu, apu)
 		{
 			// make sure the PRG-ROM size is 8k or 16k
 			if (cartridge.PrgRom.Length != 16 * 1024    // 16k
@@ -33,8 +33,8 @@ namespace Nesk.Mappers.CPUMappers
 		{
 			get => address switch
 			{
-				>= 0x6000 and <= 0x7fff => PrgRam != null ? PrgRam[(address - 0x6000) & PrgRamAddressMask] : 0, // PRG-RAM
-				>= 0x8000 and <= 0xffff => PrgRom[(address - 0x8000) & PrgRomAddressMask],                      // PRG-ROM
+				>= 0x6000 and <= 0x7fff => PrgRam?[(address - 0x6000) & PrgRamAddressMask] ?? 0, // PRG-RAM
+				>= 0x8000 and <= 0xffff => PrgRom[(address - 0x8000) & PrgRomAddressMask],       // PRG-ROM
 				_ => base[address],
 			};
 
