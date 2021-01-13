@@ -1,99 +1,75 @@
 ﻿using K6502Emu;
 using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Nesk
 {
 	public sealed class Nesk
 	{
-		/// <summary>
-		/// The ChannelReader used to retrieve the frame buffer (byte array containing a bitmap image) for each frame.
-		/// </summary>
-		public ChannelReader<byte[]> VideoOutputChannelReader => VideoOutputChannel.Reader;
-		public bool IsRunning { private set; get; } = false;
+		// TODO: properly implement this
+		public double FrameRate = 29.97;
 
-		private Channel<byte[]> VideoOutputChannel;
-		private K6502 Cpu;
-		private readonly byte[] BlankBuffer;
-		private long TickCounter = 0;
+		private K6502 Cpu { get; init; }
+		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
+		private long Cycle = 0;
+		private long Scanline = 0;
+		private bool IsFrameComplete = false;
 
-		public Nesk(string romPath)
+		public Nesk()
 		{
-			BlankBuffer = Shared.Resources.BlankBitmap;
-
-			var bus = new Bus(0xffff + 1) // 64 kB, but this really doesn't matter
+			var bus = new Bus(64 * 1024) // 64 kB
 			{
 				//TODO: add components
 			};
 
-			Cpu = new K6502(bus);
-
-			VideoOutputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(32)
-			{
-				SingleWriter = true,
-				SingleReader = true
-			});
+			Cpu = new K6502(bus, false);
 		}
 
-		/// <summary>
-		/// Calling this method starts an automatic calling of TickAsync every ~0.5 us forever, until canceled using the specified token.
-		/// </summary>
-		/// <param name="token">The token with which the ticking is stopped.</param>
-		public async void RunAsync(CancellationToken token)
+		private void Tick()
 		{
-			IsRunning = true;
-			token.Register(() => IsRunning = false);
+			Cpu.Tick();
+			//Ppu.Tick();
 
-			while (!token.IsCancellationRequested)
+			Cycle++;
+
+			if (Cycle >= 341)
 			{
-				long t1 = Stopwatch.GetTimestamp();
-				await TickAsync();
+				Cycle = 0;
+				Scanline++;
 
-				/*
-				 * 0.5 us delay, although it should be 0.558659217877095 us (microseconds)
-				 * the method returns the amount of ticks counted at a frequency of 10 MHz
-				 * (at least on my machine, TODO: make this universal), so every tick is
-				 * 100 ns or 0.1 us
-				 */
-				while (Stopwatch.GetTimestamp() - t1 < 5)
-					Thread.Sleep(0);
+				if (Scanline >= 261)
+				{
+					Scanline = -1;
+					IsFrameComplete = true;
+				}
 			}
 		}
 
-		/// <summary>
-		/// Executes one tick of the machine asynchronously.
-		/// </summary>
-		/// <returns>A <see cref="Task"/> that represents the asynchronous ticking operation.</returns>
-		private async Task TickAsync()
+		public byte[] TickToNextFrame()
 		{
-			TickCounter++;
-			if (TickCounter < 16_639) //create new frames at ~60 Hz
-				return;
+			while (!IsFrameComplete)
+			{
+				Tick();
+			}
 
-			TickCounter = 0;
-			//TODO: implement proper ticking
-			//Cpu.Tick();
+			IsFrameComplete = false;
 
-			//create random noise and write it to the VideoOutputChannel
-			byte[] buffer = (byte[])BlankBuffer.Clone();
-			int start = buffer[0x0A];
-			var rand = new Random();
+			// generate greyscale noise and return that as the frame
+			byte[] frameBuffer = (byte[])BlankBuffer.Clone();
+			int start = frameBuffer[0x0A];
+			Random rand = new();
 
 			for (int y = 0; y < 240; y++)
 			{
 				for (int x = 0; x < 256; x++)
 				{
 					byte v = (byte)rand.Next();
-					buffer[start + (y * 256 + x) * 3 + 0] = v; //B
-					buffer[start + (y * 256 + x) * 3 + 1] = v; //G
-					buffer[start + (y * 256 + x) * 3 + 2] = v; //R
+					frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
+					frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
+					frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
 				}
 			}
 
-			await VideoOutputChannel.Writer.WriteAsync(buffer);
+			return frameBuffer;
 		}
 	}
 }

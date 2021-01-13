@@ -1,44 +1,58 @@
+using System;
+using System.Threading.Tasks;
+using System.Timers;
 using Eto.Drawing;
 using Eto.Forms;
-using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Nesk.UI
 {
 	public class NeskWindow : Form
 	{
-		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
-		private ImageView DisplayImageView;
-		private Bitmap DisplayBitmap;
-		private byte[] DisplayBuffer;
+		private readonly byte[] BlackFrame = Shared.Resources.BlankBitmap;
+		private UITimer Clock;
+		private Nesk Console;
+		private string RomPath = null;
 
-		private Nesk NeskEmu;
-		private ChannelReader<byte[]> VideoOutputChannelReader;
-		private CancellationTokenSource NeskCancelSource;
-		private CancellationTokenSource VideoReaderCancelSource;
-		private string ROMPath = null;
+		private CheckMenuItem PauseButton;
+		private bool _isRunning = false;
+		private bool IsRunning
+		{
+			get => _isRunning;
+			set
+			{
+				if (Clock != null)
+				{
+					_isRunning = value;
+					PauseButton.Checked = !value;
+					if (value)
+						Clock.Start();
+					else
+						Clock.Stop();
+				}
+			}
+		}
 
 		public NeskWindow()
 		{
-			Title = "Nesk";
+			Title = "NESK";
 			//TODO: imeplement scaling of window
 			ClientSize = new Size(256, 240);
 
 			InitMenuBar();
 			InitContent();
 
-			Closing += (s, e) =>
-			{
-				StopEmulation();
-				VideoReaderCancelSource?.Cancel();
-			};
+			Closing += (_, _) => IsRunning = false;
 		}
 
 		private void InitMenuBar()
 		{
+			PauseButton = new CheckMenuItem()
+			{
+				Text = "Pause",
+				Shortcut = Application.Instance.CommonModifier | Keys.P
+			};
+			PauseButton.CheckedChanged += (_, _) => TogglePause();
+
 			Menu = new MenuBar
 			{
 				Items =
@@ -49,13 +63,14 @@ namespace Nesk.UI
 						Text = "&File",
 						Items =
 						{
-							new ButtonMenuItem((s, e) => OpenROM()) { Text = "Open ROM..." },
-							new ButtonMenuItem((s, e) => TogglePause()) { Text = "Pause" }
+							new ButtonMenuItem((_, _) => OpenROM()) { Text = "Open ROM..." },
+							new ButtonMenuItem((_, _) => HardResetEmulation()) { Text = "Hard reset" },
+							PauseButton
 						}
 					},
 				},
 				// /File/Exit
-				QuitItem = new ButtonMenuItem((s, e) => Application.Instance.Quit()) { Text = "&Exit" },
+				QuitItem = new ButtonMenuItem((_, _) => Application.Instance.Quit()) { Text = "&Exit" },
 				// /Help/About
 				AboutItem = new ButtonMenuItem() { Text = "About" } //TODO: add about info
 			};
@@ -63,98 +78,58 @@ namespace Nesk.UI
 
 		private void InitContent()
 		{
-			DisplayBuffer = (byte[])BlankBuffer.Clone();
-			Content = DisplayImageView = new ImageView
-			{
-				Image = DisplayBitmap = new Bitmap(DisplayBuffer),
-				Size = new Size(256, 240),
-			};
+			Content = new ImageView { Size = new Size(256, 240) };
+			ClearDisplay();
 		}
 
 		/// <summary>
-		/// This method waits until the next frame is ready and when it is, it repaints the display with it and starts over. Runs permanently, until canceled using VideoReaderCancelSource.
+		/// Handles the <see cref="Timer.Elapsed"/> event of the <see cref="Clock"/> object by calling <see cref="Nesk.TickToNextFrame"/> and displays the generated frame.
 		/// </summary>
-		private async void RunVideoReaderAsync()
-		{
-			var token = VideoReaderCancelSource.Token;
-			try
-			{
-				while (!token.IsCancellationRequested)
-				{
-					RepaintDisplay(await VideoOutputChannelReader.ReadAsync(VideoReaderCancelSource.Token));
-				}
-			}
-			catch (OperationCanceledException) { }
-		}
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
+		private async void ClockTickHandler(object sender, EventArgs e)
+			=> RepaintDisplay(await Task.Run(Console.TickToNextFrame));
 
 		/// <summary>
-		/// Opens a dialog window in which the user selects the ROM file. Automatically hard restarts the emulation on successful file choice.
+		/// Opens an open file dialog for selecting the ROM file. Automatically starts the emulation.
 		/// </summary>
 		private void OpenROM()
 		{
 			var dialog = new OpenFileDialog
 			{
 				// NOTE: crashes on linux for some reason, error message is something about "index out of range"
-				CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/)
+				CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/),
 			};
 
 			if (dialog.ShowDialog(this) == DialogResult.Ok)
 			{
-				ClearDisplay();
-				ROMPath = dialog.FileName;
-				ResetEmulationHard();
+				RomPath = dialog.FileName;
+				CreateAndStartConsole();
 			}
 		}
 
-		private void CreateEmulator()
+		/// <summary>
+		/// Initializes <see cref="Console"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
+		/// </summary>
+		private void CreateAndStartConsole()
 		{
-			if (NeskEmu != null)
+			if (RomPath != null)
 			{
-				VideoReaderCancelSource.Cancel();
-				VideoReaderCancelSource.Dispose();
-				// in the future, call NeskEmu.Dispose() if it ever gets added
+				// TODO: properly implement this
+				Console = new Nesk();
+				Clock = new UITimer() { Interval = 1 / Console.FrameRate };
+				Clock.Elapsed += ClockTickHandler;
+				IsRunning = true;
 			}
-
-			NeskEmu = new Nesk(ROMPath);
-			VideoOutputChannelReader = NeskEmu.VideoOutputChannelReader;
-			VideoReaderCancelSource = new CancellationTokenSource();
-			RunVideoReaderAsync();
 		}
 
 		/// <summary>
-		/// Stops the emulation, creates a new Nesk object and starts that new one.
+		/// Stops the <see cref="Clock"/>, creates a new <see cref="Nesk"/> object and starts it.
 		/// </summary>
-		private void ResetEmulationHard()
+		private void HardResetEmulation()
 		{
-			if (string.IsNullOrEmpty(ROMPath))
-				return;
-
-			if (NeskEmu?.IsRunning ?? false)
-				StopEmulation();
-
-			CreateEmulator();
-			StartEmulation();
-		}
-
-		/// <summary>
-		/// Starts the emulation if it isn't already running.
-		/// </summary>
-		private void StartEmulation()
-		{
-			if (NeskEmu.IsRunning)
-				return;
-
-			NeskCancelSource = new CancellationTokenSource();
-			Task.Run(() => NeskEmu.RunAsync(NeskCancelSource.Token)); // NOTE: the Task.Run is needed
-		}
-
-		/// <summary>
-		/// Stops the emulation if it's running.
-		/// </summary>
-		private void StopEmulation()
-		{
-			if (NeskEmu != null && NeskEmu.IsRunning)
-				NeskCancelSource.Cancel();
+			IsRunning = false;
+			CreateAndStartConsole();
 		}
 
 		/// <summary>
@@ -162,14 +137,8 @@ namespace Nesk.UI
 		/// </summary>
 		private void TogglePause()
 		{
-			//if no rom is selected (this is the case only after the program starts)
-			if (string.IsNullOrEmpty(ROMPath))
-				return;
-
-			if (NeskEmu.IsRunning)
-				StopEmulation();
-			else
-				StartEmulation();
+			if (Clock != null)
+				IsRunning = !IsRunning;
 		}
 
 		/// <summary>
@@ -177,14 +146,13 @@ namespace Nesk.UI
 		/// </summary>
 		/// <param name="frameBuffer">Array of bytes containing the bitmap image data of the frame.</param>
 		private void RepaintDisplay(byte[] frameBuffer)
-		{
-			DisplayBitmap.Dispose();
-			DisplayImageView.Image = DisplayBitmap = new Bitmap(frameBuffer);
-		}
+			// TODO: check for memory leak, if present, add the following line of code:
+			//content.Image.Dispose();
+			=> (Content as ImageView).Image = new Bitmap(frameBuffer);
 
 		/// <summary>
-		///	Repaints the display with a blank buffer (black screen).
+		///	Repaints the display with a black frame
 		/// </summary>
-		private void ClearDisplay() => RepaintDisplay((byte[])BlankBuffer.Clone());
+		private void ClearDisplay() => RepaintDisplay(BlackFrame.Clone() as byte[]);
 	}
 }
