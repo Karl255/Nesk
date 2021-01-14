@@ -1,34 +1,34 @@
 using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Timers;
 using Eto.Drawing;
 using Eto.Forms;
+using Nesk.Shared;
 
 namespace Nesk.UI
 {
 	public class NeskWindow : Form
 	{
 		private readonly byte[] BlackFrame = Shared.Resources.BlankBitmap;
-		private UITimer Clock;
+		private UITimer Clock { get; init; }
 		private Nesk Console;
 		private string RomPath = null;
 
 		private CheckMenuItem PauseButton;
-		private bool _isRunning = false;
+
 		private bool IsRunning
 		{
-			get => _isRunning;
+			get => !PauseButton.Checked;
+
 			set
 			{
-				if (Clock != null)
-				{
-					_isRunning = value;
-					PauseButton.Checked = !value;
-					if (value)
-						Clock.Start();
-					else
-						Clock.Stop();
-				}
+				// setting this property to true (value = false) triggers the event handler which calls Clock.Stop()
+				// but this is not the case when setting it to false (value = true) so Clock.Start() needs to be called manually
+				PauseButton.Checked = !value;
+
+				if (value)
+					Clock.Start();
 			}
 		}
 
@@ -37,21 +37,33 @@ namespace Nesk.UI
 			Title = "NESK";
 			//TODO: imeplement scaling of window
 			ClientSize = new Size(256, 240);
+			Clock = new UITimer();
+			Clock.Elapsed += ClockTickHandler;
 
 			InitMenuBar();
 			InitContent();
 
-			Closing += (_, _) => IsRunning = false;
+			Closing += (_, _) => Clock.Stop();
 		}
 
 		private void InitMenuBar()
 		{
-			PauseButton = new CheckMenuItem()
+			PauseButton = new()
 			{
 				Text = "Pause",
 				Shortcut = Application.Instance.CommonModifier | Keys.P
 			};
-			PauseButton.CheckedChanged += (_, _) => TogglePause();
+
+			PauseButton.CheckedChanged += (_, _) =>
+			{
+				if (Clock != null && Console != null)
+				{
+					if (!PauseButton.Checked)
+						Clock.Start();
+					else
+						Clock.Stop();
+				}
+			};
 
 			Menu = new MenuBar
 			{
@@ -63,8 +75,8 @@ namespace Nesk.UI
 						Text = "&File",
 						Items =
 						{
-							new ButtonMenuItem((_, _) => OpenROM()) { Text = "Open ROM..." },
-							new ButtonMenuItem((_, _) => HardResetEmulation()) { Text = "Hard reset" },
+							new ButtonMenuItem(async (_, _) => await OpenROM()) { Text = "Open ROM..." },
+							new ButtonMenuItem(async (_, _) => await HardResetEmulation()) { Text = "Hard reset" },
 							PauseButton
 						}
 					},
@@ -85,15 +97,13 @@ namespace Nesk.UI
 		/// <summary>
 		/// Handles the <see cref="Timer.Elapsed"/> event of the <see cref="Clock"/> object by calling <see cref="Nesk.TickToNextFrame"/> and displays the generated frame.
 		/// </summary>
-		/// <param name="sender"></param>
-		/// <param name="e"></param>
 		private async void ClockTickHandler(object sender, EventArgs e)
 			=> RepaintDisplay(await Task.Run(Console.TickToNextFrame));
 
 		/// <summary>
 		/// Opens an open file dialog for selecting the ROM file. Automatically starts the emulation.
 		/// </summary>
-		private void OpenROM()
+		private async Task OpenROM()
 		{
 			var dialog = new OpenFileDialog
 			{
@@ -104,21 +114,22 @@ namespace Nesk.UI
 			if (dialog.ShowDialog(this) == DialogResult.Ok)
 			{
 				RomPath = dialog.FileName;
-				CreateAndStartConsole();
+				await CreateAndStartConsole();
+				Clock.Interval = 1 / Console.FrameRate;
 			}
 		}
 
 		/// <summary>
 		/// Initializes <see cref="Console"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
 		/// </summary>
-		private void CreateAndStartConsole()
+		private async Task CreateAndStartConsole()
 		{
 			if (RomPath != null)
 			{
-				// TODO: properly implement this
-				Console = new Nesk();
-				Clock = new UITimer() { Interval = 1 / Console.FrameRate };
-				Clock.Elapsed += ClockTickHandler;
+				Console = (await System.IO.File.ReadAllBytesAsync(RomPath))
+					.ParseCartridge()
+					.CreateConsole();
+
 				IsRunning = true;
 			}
 		}
@@ -126,19 +137,10 @@ namespace Nesk.UI
 		/// <summary>
 		/// Stops the <see cref="Clock"/>, creates a new <see cref="Nesk"/> object and starts it.
 		/// </summary>
-		private void HardResetEmulation()
+		private async Task HardResetEmulation()
 		{
 			IsRunning = false;
-			CreateAndStartConsole();
-		}
-
-		/// <summary>
-		/// Toggles the running state of the emulation.
-		/// </summary>
-		private void TogglePause()
-		{
-			if (Clock != null)
-				IsRunning = !IsRunning;
+			await CreateAndStartConsole();
 		}
 
 		/// <summary>
@@ -147,12 +149,12 @@ namespace Nesk.UI
 		/// <param name="frameBuffer">Array of bytes containing the bitmap image data of the frame.</param>
 		private void RepaintDisplay(byte[] frameBuffer)
 			// TODO: check for memory leak, if present, add the following line of code:
-			//content.Image.Dispose();
+			//(Content as ImageView).Image?.Dispose();
 			=> (Content as ImageView).Image = new Bitmap(frameBuffer);
 
 		/// <summary>
 		///	Repaints the display with a black frame
 		/// </summary>
-		private void ClearDisplay() => RepaintDisplay(BlackFrame.Clone() as byte[]);
+		private void ClearDisplay() => RepaintDisplay(BlackFrame.CloneArray());
 	}
 }

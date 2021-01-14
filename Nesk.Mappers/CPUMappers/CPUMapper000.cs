@@ -14,7 +14,7 @@ namespace Nesk.Mappers.CPUMappers
 		{
 			// make sure the PRG-ROM size is 8k or 16k
 			if (cartridge.PrgRom.Length != 16 * 1024    // 16k
-				|| cartridge.PrgRom.Length != 8 * 1024) // 32k
+				&& cartridge.PrgRom.Length != 32 * 1024) // 32k
 				throw new Exception($"Malformed ROM file: invalid PRG-ROM size, expectd 16384 or 32768, got {cartridge.PrgRom.Length}");
 
 			PrgRom = cartridge.PrgRom;

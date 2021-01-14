@@ -1,75 +1,50 @@
 ﻿using K6502Emu;
-using System;
+using Nesk.Mappers;
 
 namespace Nesk
 {
 	public sealed class Nesk
 	{
-		// TODO: properly implement this
-		public double FrameRate = 29.97;
+		public double FrameRate;
 
 		private K6502 Cpu { get; init; }
-		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
-		private long Cycle = 0;
-		private long Scanline = 0;
-		private bool IsFrameComplete = false;
+		private PPU Ppu { get; init; }
+		private long TickCount = 0;
 
-		public Nesk()
+		public Nesk(Cartridge cartridge)
 		{
-			var bus = new Bus(64 * 1024) // 64 kB
-			{
-				//TODO: add components
-			};
+			var ppuBus = cartridge.GetPPUMapper();
+			var ppu = new PPU(ppuBus);
+			IAddressable<byte> apu = null; // TODO: implement this when APU is implemented
 
-			Cpu = new K6502(bus, false);
+			var cpuBus = cartridge.GetCPUMapper(ppu, apu);
+			var cpu = new K6502(cpuBus, false);
+
+			FrameRate = cartridge.TimingMode == TimingMode.NTSC ? 29.97 : 25.00;
+			Cpu = cpu;
+			Ppu = ppu;
 		}
 
 		private void Tick()
 		{
-			Cpu.Tick();
-			//Ppu.Tick();
+			TickCount++;
+			TickCount %= 3;
 
-			Cycle++;
+			// the PPU clock is 3x faster than the CPU clock
+			if (TickCount % 3 == 0)
+				Cpu.Tick();
 
-			if (Cycle >= 341)
-			{
-				Cycle = 0;
-				Scanline++;
-
-				if (Scanline >= 261)
-				{
-					Scanline = -1;
-					IsFrameComplete = true;
-				}
-			}
+			Ppu.Tick();
 		}
 
 		public byte[] TickToNextFrame()
 		{
-			while (!IsFrameComplete)
+			while (!Ppu.IsFrameReady)
 			{
 				Tick();
 			}
 
-			IsFrameComplete = false;
-
-			// generate greyscale noise and return that as the frame
-			byte[] frameBuffer = (byte[])BlankBuffer.Clone();
-			int start = frameBuffer[0x0A];
-			Random rand = new();
-
-			for (int y = 0; y < 240; y++)
-			{
-				for (int x = 0; x < 256; x++)
-				{
-					byte v = (byte)rand.Next();
-					frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
-					frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
-					frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
-				}
-			}
-
-			return frameBuffer;
+			return Ppu.GetFrame();
 		}
 	}
 }

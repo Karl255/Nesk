@@ -1,11 +1,12 @@
-﻿using K6502Emu;
-using Nesk.Mappers;
+﻿using System;
+using K6502Emu;
+using Nesk.Shared;
 
 namespace Nesk
 {
 	public class PPU : IAddressable<byte>
 	{
-		private readonly PPUMapper Memory;
+		private readonly IAddressable<byte> Memory;
 
 		private PPUControlRegister Control = new(0x00);
 		private PPUMaskRegister    Mask    = new(0x00);
@@ -22,7 +23,15 @@ namespace Nesk
 		private byte Data = 0x00;
 		private byte OamDma = 0x00;
 
-		public PPU(PPUMapper memoryMapper)
+		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
+		private int Cycle = 0;
+		private int Scanline = 0;
+		public bool IsFrameReady { get; private set; }
+
+		public int AddressableSize => 8;
+		public bool IsReadonly { get; set; }
+
+		public PPU(IAddressable<byte> memoryMapper)
 		{
 			Memory = memoryMapper;
 		}
@@ -128,7 +137,51 @@ namespace Nesk
 			}
 		}
 
-		public int AddressableSize { get; }
-		public bool IsReadonly { get; set; }
+		public void Tick()
+		{
+			// TODO: implement proper ticking
+
+			Cycle++;
+
+			if (Cycle >= 341)
+			{
+				Cycle = 0;
+				Scanline++;
+
+				if (Scanline >= 261)
+				{
+					Scanline = -1;
+					IsFrameReady = true;
+				}
+			}
+		}
+
+		public byte[] GetFrame()
+		{
+			if (IsFrameReady)
+			{
+				IsFrameReady = false;
+
+				// generate greyscale noise and return that as the frame
+				byte[] frameBuffer = BlankBuffer.CloneArray();
+				int start = frameBuffer[0x0A];
+				Random rand = new();
+
+				for (int y = 0; y < 240; y++)
+				{
+					for (int x = 0; x < 256; x++)
+					{
+						byte v = (byte)rand.Next();
+						frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
+						frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
+						frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
+					}
+				}
+
+				return frameBuffer;
+			}
+			else
+				return null;
+		}
 	}
 }

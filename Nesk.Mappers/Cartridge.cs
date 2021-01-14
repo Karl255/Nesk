@@ -205,15 +205,16 @@ namespace Nesk.Mappers
 			}
 		}
 
-		public Cartridge Map(IAddressable<byte> ppu, IAddressable<byte> apu)
+		public CPUMapper GetCPUMapper(IAddressable<byte> ppu, IAddressable<byte> apu) => MapperNumber switch
 		{
-			(CPUMapper, PPUMapper) = MapperNumber switch
-			{
-				000 => (new CPUMapper000(ppu, apu, this), new PPUMapper000(this)),
-				_ => throw new NotImplementedException($"Mapper {MapperNumber:000} is not supported.")
-			};
+			000 => new CPUMapper000(ppu, apu, this),
+			_ => throw new Exception($"Mapper {MapperNumber:000} is not supported.")
+		};
 
-			return this;
-		}
+		public PPUMapper GetPPUMapper() => MapperNumber switch
+		{
+			000 => new PPUMapper000(this),
+			_ => throw new Exception($"Mapper {MapperNumber:000} is not supported.")
+		};
 	}
 }
