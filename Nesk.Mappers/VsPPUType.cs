@@ -1,6 +1,6 @@
 ﻿namespace Nesk.Mappers
 {
-	public enum VsPPUType
+	public enum VsPpuType
 	{
 		// these have different color palettes, refer to: http://wiki.nesdev.com/w/index.php/PPU_palettes
 		RP2C03B,

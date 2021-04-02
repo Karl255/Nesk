@@ -2,13 +2,13 @@
 
 namespace Nesk
 {
-	public struct PPUStatusRegister
+	public struct PpuStatusRegister
 	{
 		public bool SpriteOverflow;
 		public bool Sprite0Hit;
 		public bool VerticalBlank;
 
-		public PPUStatusRegister(byte value)
+		public PpuStatusRegister(byte value)
 		{
 			SpriteOverflow = (value & 0b0010_0000) != 0;
 			Sprite0Hit     = (value & 0b0100_0000) != 0;

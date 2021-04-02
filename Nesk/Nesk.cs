@@ -8,13 +8,13 @@ namespace Nesk
 		public double FrameRate;
 
 		private K6502 Cpu { get; init; }
-		private PPU Ppu { get; init; }
+		private Ppu Ppu { get; init; }
 		private long TickCount = 0;
 
 		public Nesk(Cartridge cartridge)
 		{
 			var ppuBus = cartridge.GetPPUMapper();
-			var ppu = new PPU(ppuBus);
+			var ppu = new Ppu(ppuBus);
 			IAddressable<byte> apu = null; // TODO: implement this when APU is implemented
 
 			var cpuBus = cartridge.GetCPUMapper(ppu, apu);
@@ -47,6 +47,6 @@ namespace Nesk
 			return Ppu.GetFrame();
 		}
 
-		public byte[] RenderPatternMemory() => Ppu.RenderPatternMemory();
+		public byte[] RenderPatternMemory(int palette) => Ppu.RenderPatternMemory(palette);
 	}
 }

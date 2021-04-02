@@ -31,6 +31,9 @@ namespace Nesk.UI
 			}
 		}
 
+		public int DebugSelectedPalette = 0;
+		private RadioMenuItem DebugSelectPaletteRadioController = new();
+
 		public NeskWindow()
 		{
 			Title = "NESK";
@@ -80,18 +83,31 @@ namespace Nesk.UI
 						}
 					},
 #if DEBUG
+					// /Debug/
 					new ButtonMenuItem
 					{
 						Text = "Debug",
 						Items =
 						{
-							new ButtonMenuItem((_, _) => {
-								if (RomPath == null) return;
-								IsRunning = false; // pause emulation
-								byte[] frame = Console.RenderPatternMemory();
-								RepaintDisplay(frame);
-								System.IO.File.WriteAllBytes("framedump.bmp", frame);
-							}) { Text = "Show patterns" }
+							// /Debug/Show patterns
+							new ButtonMenuItem((_, _) => DebugRenderPatterns(DebugSelectedPalette)) { Text = "Show patterns" },
+
+							// /Debug/Select palette
+							new ButtonMenuItem
+							{
+								Text = "Select palette",
+								Items =
+								{
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 0), DebugSelectPaletteRadioController) { Text = "Palette 0", Checked = true },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 1), DebugSelectPaletteRadioController) { Text = "Palette 1" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 2), DebugSelectPaletteRadioController) { Text = "Palette 2" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 3), DebugSelectPaletteRadioController) { Text = "Palette 3" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 4), DebugSelectPaletteRadioController) { Text = "Palette 4" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 5), DebugSelectPaletteRadioController) { Text = "Palette 5" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 6), DebugSelectPaletteRadioController) { Text = "Palette 6" },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 7), DebugSelectPaletteRadioController) { Text = "Palette 7" },
+								}
+							}
 						}
 					}
 #endif
@@ -129,23 +145,30 @@ namespace Nesk.UI
 
 			if (dialog.ShowDialog(this) == DialogResult.Ok)
 			{
-				RomPath = dialog.FileName;
-				await CreateAndStartConsole();
-				Clock.Interval = 1 / Console.FrameRate;
+				try
+				{
+					await CreateAndStartConsole(dialog.FileName);
+					RomPath = dialog.FileName;
+				}
+				catch (Exception e)
+				{
+					MessageBox.Show("Failed to load ROM: " + e.Message);
+				}
 			}
 		}
 
 		/// <summary>
 		/// Initializes <see cref="Console"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
 		/// </summary>
-		private async Task CreateAndStartConsole()
+		private async Task CreateAndStartConsole(string romPath = null)
 		{
-			if (RomPath != null)
+			if (romPath != null || RomPath != null)
 			{
-				Console = (await System.IO.File.ReadAllBytesAsync(RomPath))
+				Console = (await System.IO.File.ReadAllBytesAsync(romPath ?? RomPath))
 					.ParseCartridge()
 					.CreateConsole();
 
+				Clock.Interval = 1 / Console.FrameRate;
 				IsRunning = true;
 			}
 		}
@@ -172,5 +195,12 @@ namespace Nesk.UI
 		///	Repaints the display with a black frame
 		/// </summary>
 		private void ClearDisplay() => RepaintDisplay(BlackFrame.CloneArray());
+
+		private void DebugRenderPatterns(int palette)
+		{
+			if (RomPath == null) return;
+			IsRunning = false; // pause emulation
+			RepaintDisplay(Console.RenderPatternMemory(palette));
+		}
 	}
 }

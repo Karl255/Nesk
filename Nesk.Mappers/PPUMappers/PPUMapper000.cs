@@ -2,11 +2,11 @@
 
 namespace Nesk.Mappers.PPUMappers
 {
-	public class PPUMapper000 : PPUMapper
+	public class PpuMapper000 : PpuMapper
 	{
 		private readonly byte[] ChrRom;
 
-		public PPUMapper000(Cartridge cartridge)
+		public PpuMapper000(Cartridge cartridge)
 		{
 			if (cartridge.ChrRom.Length != 8 * 1024) // 8k
 				throw new Exception($"Malformed ROM file: invalid CHR-ROM size, expected 8192, got {cartridge.ChrRom.Length}");

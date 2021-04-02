@@ -37,12 +37,12 @@ namespace Nesk.Mappers
 		public TimingMode TimingMode { get; private set; }
 		public bool HasBusConflicts { get; private set; }
 
-		public VsPPUType VsPPUType { get; private set; }
+		public VsPpuType VsPPUType { get; private set; }
 		public VsHardwareType VsHardwareType { get; private set; }
 		public ExpansinDevice DefaultExpansionDevice { get; private set; }
 
-		public CPUMapper CPUMapper { get; private set; }
-		public PPUMapper PPUMapper { get; private set; }
+		public CpuMapper CPUMapper { get; private set; }
+		public PpuMapper PPUMapper { get; private set; }
 
 		/// <summary>
 		/// Creates a new <see cref="Cartridge"/> object from the specified ROM file contents.
@@ -118,7 +118,7 @@ namespace Nesk.Mappers
 
 			if (ConsoleType == ConsoleType.VsSystem)
 			{
-				VsPPUType = (VsPPUType)(fileData[13] & 0xf);
+				VsPPUType = (VsPpuType)(fileData[13] & 0xf);
 				VsHardwareType = (VsHardwareType)((fileData[13] & 0xf0) >> 4);
 			}
 
@@ -205,15 +205,15 @@ namespace Nesk.Mappers
 			}
 		}
 
-		public CPUMapper GetCPUMapper(IAddressable<byte> ppu, IAddressable<byte> apu) => MapperNumber switch
+		public CpuMapper GetCPUMapper(IAddressable<byte> ppu, IAddressable<byte> apu) => MapperNumber switch
 		{
-			000 => new CPUMapper000(ppu, apu, this),
+			000 => new CpuMapper000(ppu, apu, this),
 			_ => throw new Exception($"Mapper {MapperNumber:000} is not supported.")
 		};
 
-		public PPUMapper GetPPUMapper() => MapperNumber switch
+		public PpuMapper GetPPUMapper() => MapperNumber switch
 		{
-			000 => new PPUMapper000(this),
+			000 => new PpuMapper000(this),
 			_ => throw new Exception($"Mapper {MapperNumber:000} is not supported.")
 		};
 	}

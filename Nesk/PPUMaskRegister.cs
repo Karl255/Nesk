@@ -2,7 +2,7 @@
 
 namespace Nesk
 {
-	public struct PPUMaskRegister
+	public struct PpuMaskRegister
 	{
 		public bool Greyscale;
 		public bool ShowLeftmostBackground;
@@ -13,7 +13,7 @@ namespace Nesk
 		public bool EmpasizeGreen;
 		public bool EmpasizeBlue;
 
-		public PPUMaskRegister(byte value)
+		public PpuMaskRegister(byte value)
 		{
 			Greyscale              = (value & 0b0000_0001) != 0;
 			ShowLeftmostBackground = (value & 0b0000_0010) != 0;

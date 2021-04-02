@@ -1,16 +1,17 @@
 ﻿using System;
+using System.Collections.Immutable;
 using K6502Emu;
 using Nesk.Shared;
 
 namespace Nesk
 {
-	public class PPU : IAddressable<byte>
+	public class Ppu : IAddressable<byte>
 	{
 		private readonly IAddressable<byte> Memory;
 
-		private PPUControlRegister Control = new(0x00);
-		private PPUMaskRegister    Mask    = new(0x00);
-		private PPUStatusRegister  Status  = new(0b1010_0000);
+		private PpuControlRegister Control = new(0x00);
+		private PpuMaskRegister    Mask    = new(0x00);
+		private PpuStatusRegister  Status  = new(0b1010_0000);
 
 		private byte OamAddress = 0x00;
 		private byte OamData = 0x00;
@@ -18,9 +19,9 @@ namespace Nesk
 		private byte ScrollX = 0x00;
 		private byte ScrollY = 0x00;
 
-		private bool AddressScrollLatch = false;
+		private bool AddressScrollLatch = true;
 		private int Address = 0x0000;
-		private byte Data = 0x00;
+		private byte DataBuffer = 0x00;
 		private byte OamDma = 0x00;
 
 		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
@@ -31,7 +32,75 @@ namespace Nesk
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
 
-		public PPU(IAddressable<byte> memoryMapper)
+		private readonly ImmutableArray<(byte, byte, byte)> ColorPalette = new()
+		{
+			(84,  84,  84),
+			(0,   30,  116),
+			(8,   16,  144),
+			(48,  0,   136),
+			(68,  0,   100),
+			(92,  0,   48),
+			(84,  4,   0),
+			(60,  24,  0),
+			(32,  42,  0),
+			(8,   58,  0),
+			(0,   64,  0),
+			(0,   60,  0),
+			(0,   50,  60),
+			(0,   0,   0),
+			(0,   0,   0),
+			(0,   0,   0),
+			(152, 150, 152),
+			(8,   76,  196),
+			(48,  50,  236),
+			(92,  30,  228),
+			(136, 20,  176),
+			(160, 20,  100),
+			(152, 34,  32),
+			(120, 60,  0),
+			(84,  90,  0),
+			(40,  114, 0),
+			(8,   124, 0),
+			(0,   118, 40),
+			(0,   102, 120),
+			(0,   0,   0),
+			(0,   0,   0),
+			(0,   0,   0),
+			(236, 238, 236),
+			(76,  154, 236),
+			(120, 124, 236),
+			(176, 98,  236),
+			(228, 84,  236),
+			(236, 88,  180),
+			(236, 106, 100),
+			(212, 136, 32),
+			(160, 170, 0),
+			(116, 196, 0),
+			(76,  208, 32),
+			(56,  204, 108),
+			(56,  180, 204),
+			(60,  60,  60),
+			(0,   0,   0),
+			(0,   0,   0),
+			(236, 238, 236),
+			(168, 204, 236),
+			(188, 188, 236),
+			(212, 178, 236),
+			(236, 174, 236),
+			(236, 174, 212),
+			(236, 180, 176),
+			(228, 196, 144),
+			(204, 210, 120),
+			(180, 222, 120),
+			(168, 226, 144),
+			(152, 226, 180),
+			(160, 214, 228),
+			(160, 162, 160),
+			(0,   0,   0),
+			(0,   0,   0)
+		};
+
+		public Ppu(IAddressable<byte> memoryMapper)
 		{
 			Memory = memoryMapper;
 		}
@@ -40,29 +109,30 @@ namespace Nesk
 		{
 			get
 			{
-				byte data = 0;
+				byte returnedData = 0;
 				switch (address)
 				{
 					case >= 0x2000 and <= 0x3fff:
 						switch (address & 0x7)
 						{
 							case 2: // status
-								data = (byte)((Data & 0x1f) | Status.Byte);
+									// top 3 bytes exist, the bottom 5 don't, so static noise determines them
+								returnedData = (byte)((Status.Byte & 0xe0) | (DataBuffer & 0x1f));
 								break;
 
 							case 4: // OAM Data
-								data = OamData;
+								returnedData = OamData;
 								break;
 
 							case 7: // data
-									// nametable reading is delayed by 1 cycle
-								if (Address is >= 0x3f00 and <= 0x3fff)
+									// reading is delayed by 1 cycle (except for palette memory)
+								if (Address < 0x3f00)
 								{
-									data = Data;
-									Data = Memory[Address];
+									returnedData = DataBuffer;
+									DataBuffer = Memory[Address];
 								}
 								else
-									data = Data = Memory[address];
+									returnedData = DataBuffer = Memory[address];
 								break;
 
 							default:
@@ -72,14 +142,14 @@ namespace Nesk
 						break;
 
 					case 0x4014: // OAM DMA
-						data = OamDma;
+						returnedData = OamDma;
 						break;
 
 					default:
 						break;
 				}
 
-				return data;
+				return returnedData;
 			}
 
 			set
@@ -115,6 +185,7 @@ namespace Nesk
 								break;
 
 							case 6: // address
+									// first high byte then low byte (initial value of the latch is 1)
 								if (AddressScrollLatch)
 									Address = (Address & 0xff) | (value << 8);
 								else
@@ -124,7 +195,7 @@ namespace Nesk
 								break;
 
 							case 7: // data
-								Memory[Address] = Data = value;
+								Memory[Address] = DataBuffer = value;
 								Address += Control.IncrementMode ? 32 : 1;
 								break;
 						}
@@ -184,7 +255,7 @@ namespace Nesk
 				return null;
 		}
 
-		public byte[] RenderPatternMemory()
+		public byte[] RenderPatternMemory(int palette)
 		{
 			byte[] frameBuffer = BlankBuffer.CloneArray();
 			int start = frameBuffer[0x0A];
@@ -209,10 +280,10 @@ namespace Nesk
 							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
 						) = pixelColor switch
 						{
-							0 => ((byte)0, (byte)0, (byte)0),
-							1 => ((byte)255, (byte)0, (byte)0),
-							2 => ((byte)0, (byte)255, (byte)0),
-							3 => ((byte)0, (byte)0, (byte)255),
+							0 => ColorPalette[Memory[0x3f00]],
+							1 => ColorPalette[Memory[0x3f00 + palette * 4 + 1]],
+							2 => ColorPalette[Memory[0x3f00 + palette * 4 + 2]],
+							3 => ColorPalette[Memory[0x3f00 + palette * 4 + 3]],
 							_ => ((byte)0, (byte)0, (byte)0)
 						};
 					}
@@ -239,10 +310,10 @@ namespace Nesk
 							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
 						) = pixelColor switch
 						{
-							0 => ((byte)0, (byte)0, (byte)0),
-							1 => ((byte)255, (byte)0, (byte)0),
-							2 => ((byte)0, (byte)255, (byte)0),
-							3 => ((byte)0, (byte)0, (byte)255),
+							0 => ColorPalette[Memory[0x3f00]],
+							1 => ColorPalette[Memory[0x3f00 + palette * 4 + 1]],
+							2 => ColorPalette[Memory[0x3f00 + palette * 4 + 2]],
+							3 => ColorPalette[Memory[0x3f00 + palette * 4 + 3]],
 							_ => ((byte)0, (byte)0, (byte)0)
 						};
 					}
