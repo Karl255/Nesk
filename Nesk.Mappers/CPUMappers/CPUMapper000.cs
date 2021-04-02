@@ -29,7 +29,7 @@ namespace Nesk.Mappers.CPUMappers
 			}
 		}
 
-		public new byte this[int address]
+		public override byte this[int address]
 		{
 			get => address switch
 			{

@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Threading.Tasks;
 using System.Timers;
 using Eto.Drawing;
@@ -80,6 +79,22 @@ namespace Nesk.UI
 							PauseButton
 						}
 					},
+#if DEBUG
+					new ButtonMenuItem
+					{
+						Text = "Debug",
+						Items =
+						{
+							new ButtonMenuItem((_, _) => {
+								if (RomPath == null) return;
+								IsRunning = false; // pause emulation
+								byte[] frame = Console.RenderPatternMemory();
+								RepaintDisplay(frame);
+								System.IO.File.WriteAllBytes("framedump.bmp", frame);
+							}) { Text = "Show patterns" }
+						}
+					}
+#endif
 				},
 				// /File/Exit
 				QuitItem = new ButtonMenuItem((_, _) => Application.Instance.Quit()) { Text = "&Exit" },
@@ -90,7 +105,8 @@ namespace Nesk.UI
 
 		private void InitContent()
 		{
-			Content = new ImageView { Size = new Size(256, 240) };
+			Content = new ImageView();
+			Resizable = false;
 			ClearDisplay();
 		}
 

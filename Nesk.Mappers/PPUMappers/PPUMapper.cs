@@ -9,7 +9,7 @@ namespace Nesk.Mappers
 		//private PPU PPU = new PPU();
 		//private APU APU = new APU();
 
-		public byte this[int address]
+		public virtual byte this[int address]
 		{
 			get => address switch
 			{

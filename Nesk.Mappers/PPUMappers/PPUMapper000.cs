@@ -14,7 +14,7 @@ namespace Nesk.Mappers.PPUMappers
 			ChrRom = cartridge.ChrRom;
 		}
 
-		public new byte this[int address] => address switch
+		public override byte this[int address] => address switch
 		{
 			>= 0x0000 and <= 0x1fff => ChrRom[address],
 			_ => base[address]

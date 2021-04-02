@@ -46,5 +46,7 @@ namespace Nesk
 
 			return Ppu.GetFrame();
 		}
+
+		public byte[] RenderPatternMemory() => Ppu.RenderPatternMemory();
 	}
 }

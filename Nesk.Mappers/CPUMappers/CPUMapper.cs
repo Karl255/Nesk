@@ -15,7 +15,7 @@ namespace Nesk.Mappers
 			APU = apu;
 		}
 
-		public byte this[int address]
+		public virtual byte this[int address]
 		{
 			get => address switch
 			{

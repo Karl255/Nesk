@@ -183,5 +183,73 @@ namespace Nesk
 			else
 				return null;
 		}
+
+		public byte[] RenderPatternMemory()
+		{
+			byte[] frameBuffer = BlankBuffer.CloneArray();
+			int start = frameBuffer[0x0A];
+
+			for (int sprite = 0; sprite < 256; sprite++)
+			{
+				for (int spriteY = 0; spriteY < 8; spriteY++)
+				{
+					int rowByteLower = Memory[sprite * 16 + spriteY];
+					int rowByteUpper = Memory[sprite * 16 + spriteY + 0x0008];
+
+					for (int spriteX = 0; spriteX < 8; spriteX++)
+					{
+						int x = sprite % 16 * 8 + spriteX;
+						int y = 239 - (sprite / 16 * 8 + spriteY);
+						int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
+							| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
+
+						(
+							frameBuffer[start + (y * 256 + x) * 3 + 2], // R
+							frameBuffer[start + (y * 256 + x) * 3 + 1], // G
+							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
+						) = pixelColor switch
+						{
+							0 => ((byte)0, (byte)0, (byte)0),
+							1 => ((byte)255, (byte)0, (byte)0),
+							2 => ((byte)0, (byte)255, (byte)0),
+							3 => ((byte)0, (byte)0, (byte)255),
+							_ => ((byte)0, (byte)0, (byte)0)
+						};
+					}
+				}
+			}
+
+			for (int sprite = 0; sprite < 256; sprite++)
+			{
+				for (int spriteY = 0; spriteY < 8; spriteY++)
+				{
+					int rowByteLower = Memory[sprite * 16 + spriteY + 0x1000];
+					int rowByteUpper = Memory[sprite * 16 + spriteY + 0x1008];
+
+					for (int spriteX = 0; spriteX < 8; spriteX++)
+					{
+						int x = sprite % 16 * 8 + spriteX + 128;
+						int y = 239 - (sprite / 16 * 8 + spriteY);
+						int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
+							| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
+
+						(
+							frameBuffer[start + (y * 256 + x) * 3 + 2], // R
+							frameBuffer[start + (y * 256 + x) * 3 + 1], // G
+							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
+						) = pixelColor switch
+						{
+							0 => ((byte)0, (byte)0, (byte)0),
+							1 => ((byte)255, (byte)0, (byte)0),
+							2 => ((byte)0, (byte)255, (byte)0),
+							3 => ((byte)0, (byte)0, (byte)255),
+							_ => ((byte)0, (byte)0, (byte)0)
+						};
+					}
+				}
+			}
+
+			return frameBuffer;
+		}
 	}
 }
