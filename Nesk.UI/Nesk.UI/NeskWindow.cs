@@ -38,12 +38,15 @@ namespace Nesk.UI
 		{
 			Title = "NESK";
 			//TODO: imeplement scaling of window
-			ClientSize = new Size(256, 240);
 			Clock = new UITimer();
 			Clock.Elapsed += ClockTickHandler;
 
 			InitMenuBar();
 			InitContent();
+
+			Content.AllowDrop = true;
+			Content.DragEnter += (o, e) => e.Effects = DragEffects.All;
+			Content.DragDrop += async (o, e) => await OpenROM(e.Data.Uris[0].LocalPath);
 
 			Closing += (_, _) => Clock.Stop();
 		}
@@ -133,28 +136,34 @@ namespace Nesk.UI
 			=> RepaintDisplay(await Task.Run(Console.TickToNextFrame));
 
 		/// <summary>
-		/// Opens an open file dialog for selecting the ROM file. Automatically starts the emulation.
+		/// Attempts to open the ROM at the specified path. If <paramref name="romPath"/> is omitted then a <see cref="FileDialog"/> is displayed which asks the user for the rom. The path is saved to <see cref="RomPath"/> if the ROM is valid. Automatically starts the emulation.
 		/// </summary>
-		private async Task OpenROM()
+		private async Task OpenROM(string romPath = null)
 		{
-			var dialog = new OpenFileDialog
+			if (romPath is null)
 			{
-				// NOTE: crashes on linux for some reason, error message is something about "index out of range"
-				CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/),
-			};
+				var dialog = new OpenFileDialog
+				{
+					// NOTE: crashes on linux for some reason, error message is something about "index out of range"
+					CurrentFilter = new FileFilter("NES ROM files", ".nes" /*, ".unf"*/),
+				};
 
-			if (dialog.ShowDialog(this) == DialogResult.Ok)
-			{
-				try
-				{
-					await CreateAndStartConsole(dialog.FileName);
-					RomPath = dialog.FileName;
-				}
-				catch (Exception e)
-				{
-					MessageBox.Show("Failed to load ROM: " + e.Message);
-				}
+				if (dialog.ShowDialog(this) == DialogResult.Ok)
+					romPath = dialog.FileName;
+				else
+					return;
 			}
+
+			try
+			{
+				await CreateAndStartConsole(romPath);
+				RomPath = romPath;
+			}
+			catch (Exception e)
+			{
+				MessageBox.Show("Failed to load ROM: " + e.Message);
+			}
+
 		}
 
 		/// <summary>
@@ -198,7 +207,8 @@ namespace Nesk.UI
 
 		private void DebugRenderPatterns(int palette)
 		{
-			if (RomPath == null) return;
+			if (RomPath == null)
+				return;
 			IsRunning = false; // pause emulation
 			RepaintDisplay(Console.RenderPatternMemory(palette));
 		}

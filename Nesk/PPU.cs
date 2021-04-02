@@ -32,7 +32,7 @@ namespace Nesk
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
 
-		private readonly ImmutableArray<(byte, byte, byte)> ColorPalette = new()
+		private readonly ImmutableArray<(byte, byte, byte)> ColorPalette = ImmutableArray.Create(new (byte, byte, byte)[]
 		{
 			(84,  84,  84),
 			(0,   30,  116),
@@ -98,7 +98,7 @@ namespace Nesk
 			(160, 162, 160),
 			(0,   0,   0),
 			(0,   0,   0)
-		};
+		});
 
 		public Ppu(IAddressable<byte> memoryMapper)
 		{
