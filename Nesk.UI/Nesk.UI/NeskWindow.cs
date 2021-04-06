@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Timers;
 using Eto.Drawing;
@@ -31,8 +32,8 @@ namespace Nesk.UI
 			}
 		}
 
-		public int DebugSelectedPalette = 0;
-		private RadioMenuItem DebugSelectPaletteRadioController = new();
+		public int DebugSelectedPalette = -1;
+		private readonly RadioMenuItem DebugSelectPaletteRadioController = new();
 
 		public NeskWindow()
 		{
@@ -92,16 +93,24 @@ namespace Nesk.UI
 						Text = "Debug",
 						Items =
 						{
+							// /Debug/Get next frame
+							new ButtonMenuItem(async (_, _) =>
+							{
+								if (RomPath != null)
+									RepaintDisplay(await Task.Run(Console.TickToNextFrame));
+							}) { Text = "Get next frame" },
+
 							// /Debug/Show patterns
 							new ButtonMenuItem((_, _) => DebugRenderPatterns(DebugSelectedPalette)) { Text = "Show patterns" },
 
 							// /Debug/Select palette
 							new ButtonMenuItem
 							{
-								Text = "Select palette",
+								Text = "Use palette",
 								Items =
 								{
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 0), DebugSelectPaletteRadioController) { Text = "Palette 0", Checked = true },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = -1), DebugSelectPaletteRadioController) { Text = "None", Checked = true },
+									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 0), DebugSelectPaletteRadioController) { Text = "Palette 0" },
 									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 1), DebugSelectPaletteRadioController) { Text = "Palette 1" },
 									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 2), DebugSelectPaletteRadioController) { Text = "Palette 2" },
 									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 3), DebugSelectPaletteRadioController) { Text = "Palette 3" },
@@ -110,7 +119,32 @@ namespace Nesk.UI
 									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 6), DebugSelectPaletteRadioController) { Text = "Palette 6" },
 									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 7), DebugSelectPaletteRadioController) { Text = "Palette 7" },
 								}
-							}
+							},
+
+							// /Debug/Dump memory to file
+							new ButtonMenuItem(async(_, _) =>
+							{
+								bool wasRunning = IsRunning;
+								IsRunning = false;
+								await File.WriteAllBytesAsync("memory-dump.bin", Console.DumpMemory());
+								IsRunning = wasRunning;
+							}) { Text = "Dump memory to file" },
+
+							// /Debug/Benchmark frame
+							new ButtonMenuItem((_, _) =>
+							{
+								bool wasRunning = IsRunning;
+								IsRunning = false;
+
+								System.Diagnostics.Stopwatch sw = new();
+								sw.Start();
+								byte[] frame = Console.TickToNextFrame();
+								sw.Stop();
+								RepaintDisplay(frame);
+								MessageBox.Show("Finished! Took " + sw.Elapsed.ToString());
+
+								IsRunning = wasRunning;
+							}) { Text = "Benchmark frame" },
 						}
 					}
 #endif
@@ -158,6 +192,8 @@ namespace Nesk.UI
 			{
 				await CreateAndStartConsole(romPath);
 				RomPath = romPath;
+				int t = Math.Max(romPath.LastIndexOf('\\'), romPath.LastIndexOf('/')) + 1;
+				Title = "Nesk | " + romPath[t..^4];
 			}
 			catch (Exception e)
 			{
@@ -173,7 +209,7 @@ namespace Nesk.UI
 		{
 			if (romPath != null || RomPath != null)
 			{
-				Console = (await System.IO.File.ReadAllBytesAsync(romPath ?? RomPath))
+				Console = (await File.ReadAllBytesAsync(romPath ?? RomPath))
 					.ParseCartridge()
 					.CreateConsole();
 

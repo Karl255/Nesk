@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using K6502Emu;
 using Nesk.Shared;
 
@@ -112,36 +111,29 @@ namespace Nesk
 				byte returnedData = 0;
 				switch (address)
 				{
-					case >= 0x2000 and <= 0x3fff:
-						switch (address & 0x7)
-						{
-							case 2: // status
-									// top 3 bytes exist, the bottom 5 don't, so static noise determines them
-								returnedData = (byte)((Status.Byte & 0xe0) | (DataBuffer & 0x1f));
-								break;
-
-							case 4: // OAM Data
-								returnedData = OamData;
-								break;
-
-							case 7: // data
-									// reading is delayed by 1 cycle (except for palette memory)
-								if (Address < 0x3f00)
-								{
-									returnedData = DataBuffer;
-									DataBuffer = Memory[Address];
-								}
-								else
-									returnedData = DataBuffer = Memory[address];
-								break;
-
-							default:
-								break;
-						}
-
+					case 2: // status
+							// top 3 bytes exist, the bottom 5 don't, so static noise determines them
+						returnedData = (byte)(Status.Byte | (DataBuffer & 0x1f));
+						Status.VerticalBlank = false;
+						AddressScrollLatch = true; // reading from status resets the write latch for those 2 registers
 						break;
 
-					case 0x4014: // OAM DMA
+					case 4: // OAM Data
+						returnedData = OamData;
+						break;
+
+					case 7: // data
+							// reading is delayed by 1 cycle (except for palette memory)
+						if (Address < 0x3f00)
+						{
+							returnedData = DataBuffer;
+							DataBuffer = Memory[Address];
+						}
+						else
+							returnedData = DataBuffer = Memory[address];
+						break;
+
+					case 0x14: // OAM DMA
 						returnedData = OamDma;
 						break;
 
@@ -156,53 +148,51 @@ namespace Nesk
 			{
 				switch (address)
 				{
-					case >= 0x2000 and <= 0x3fff:
-						switch (address & 0x7)
-						{
-							case 0: // control
-								Control.Byte = value;
-								break;
-
-							case 1: // mask
-								Mask.Byte = value;
-								break;
-
-							case 3: // OAM address
-								OamAddress = value;
-								break;
-
-							case 4: // OAM data
-								OamData = value;
-								break;
-
-							case 5: // scroll
-								if (AddressScrollLatch)
-									ScrollY = value;
-								else
-									ScrollX = value;
-
-								AddressScrollLatch = !AddressScrollLatch;
-								break;
-
-							case 6: // address
-									// first high byte then low byte (initial value of the latch is 1)
-								if (AddressScrollLatch)
-									Address = (Address & 0xff) | (value << 8);
-								else
-									Address = (Address & 0xff00) | value;
-
-								AddressScrollLatch = !AddressScrollLatch;
-								break;
-
-							case 7: // data
-								Memory[Address] = DataBuffer = value;
-								Address += Control.IncrementMode ? 32 : 1;
-								break;
-						}
+					case 0: // control
+						Control.Byte = value;
 						break;
 
-					case 0x4014:
+					case 1: // mask
+						Mask.Byte = value;
+						break;
+
+					case 3: // OAM address
+						OamAddress = value;
+						break;
+
+					case 4: // OAM data
+						OamData = value;
+						break;
+
+					case 5: // scroll
+						if (AddressScrollLatch)
+							ScrollY = value;
+						else
+							ScrollX = value;
+
+						AddressScrollLatch = !AddressScrollLatch;
+						break;
+
+					case 6: // address
+							// first high byte then low byte (initial value of the latch is 1)
+						if (AddressScrollLatch)
+							Address = (Address & 0xff) | (value << 8);
+						else
+							Address = (Address & 0xff00) | value;
+
+						AddressScrollLatch = !AddressScrollLatch;
+						break;
+
+					case 7: // data
+						Memory[Address] = DataBuffer = value;
+						Address += Control.IncrementMode ? 32 : 1;
+						break;
+
+					case 0x14: // OAM DMA
 						OamDma = value;
+						break;
+
+					default:
 						break;
 				}
 			}
@@ -225,10 +215,49 @@ namespace Nesk
 					IsFrameReady = true;
 				}
 			}
+
+			if (Scanline == 241 && Cycle == 1)
+				Status.VerticalBlank = true;
+
+			if (Scanline == 261 && Cycle == 1)
+				Status.VerticalBlank = false;
 		}
 
 		public byte[] GetFrame()
 		{
+			if (IsFrameReady)
+			{
+				byte[] frameBuffer = BlankBuffer.CloneArray();
+				int start = frameBuffer[0x0A];
+
+				for (int tileY = 0; tileY < 30; tileY++)
+				{
+					for (int tileX = 0; tileX < 32; tileX++)
+					{
+						int patternId = Memory[0x2000 + 32 * tileY + tileX];
+
+						for (int i = 0; i < 8; i++)
+						{
+							byte v = (patternId & 0xf0) != 0 ? 255 : 0;
+
+							int x = tileX * 8 + i;
+							int y = 239 - tileY * 8;
+
+							frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
+							frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
+							frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
+
+							patternId <<= 1;
+						}
+					}
+				}
+
+				return frameBuffer;
+			}
+			else
+				return null;
+
+			/*
 			if (IsFrameReady)
 			{
 				IsFrameReady = false;
@@ -240,7 +269,7 @@ namespace Nesk
 
 				for (int y = 0; y < 240; y++)
 				{
-					for (int x = 0; x < 256; x++)
+					for (int x = 0; x < 256;
 					{
 						byte v = (byte)rand.Next();
 						frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
@@ -253,10 +282,16 @@ namespace Nesk
 			}
 			else
 				return null;
+			*/
 		}
 
 		public byte[] RenderPatternMemory(int palette)
 		{
+			var color0 = palette >= 0 ? ColorPalette[Memory[0x3f00]]                   : ((byte)0  , (byte)0  , (byte)0  );
+			var color1 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 1]] : ((byte)255, (byte)0  , (byte)0  );
+			var color2 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 2]] : ((byte)0  , (byte)255, (byte)0  );
+			var color3 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 3]] : ((byte)0  , (byte)0  , (byte)255);
+
 			byte[] frameBuffer = BlankBuffer.CloneArray();
 			int start = frameBuffer[0x0A];
 
@@ -280,10 +315,10 @@ namespace Nesk
 							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
 						) = pixelColor switch
 						{
-							0 => ColorPalette[Memory[0x3f00]],
-							1 => ColorPalette[Memory[0x3f00 + palette * 4 + 1]],
-							2 => ColorPalette[Memory[0x3f00 + palette * 4 + 2]],
-							3 => ColorPalette[Memory[0x3f00 + palette * 4 + 3]],
+							0 => color0,
+							1 => color1,
+							2 => color2,
+							3 => color3,
 							_ => ((byte)0, (byte)0, (byte)0)
 						};
 					}
@@ -310,10 +345,10 @@ namespace Nesk
 							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
 						) = pixelColor switch
 						{
-							0 => ColorPalette[Memory[0x3f00]],
-							1 => ColorPalette[Memory[0x3f00 + palette * 4 + 1]],
-							2 => ColorPalette[Memory[0x3f00 + palette * 4 + 2]],
-							3 => ColorPalette[Memory[0x3f00 + palette * 4 + 3]],
+							0 => color0,
+							1 => color1,
+							2 => color2,
+							3 => color3,
 							_ => ((byte)0, (byte)0, (byte)0)
 						};
 					}

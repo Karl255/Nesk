@@ -1,5 +1,4 @@
-﻿using System;
-using K6502Emu;
+﻿using K6502Emu;
 
 namespace Nesk.Mappers
 {
@@ -19,18 +18,18 @@ namespace Nesk.Mappers
 		{
 			get => address switch
 			{
-				>= 0x0000 and <= 0x1fff => Ram[address & 0x07ff],            // 2k RAM
-				>= 0x2000 and <= 0x3fff => Ppu[(address - 0x2000) & 0x0007], // PPU registers
-
+				>= 0x0000 and <= 0x1fff => Ram[address & 0x07ff], // 2k RAM
+				>= 0x2000 and <= 0x3fff => Ppu[address & 0x0007], // PPU registers
+				0x4014                  => Ppu[0x14],             // OAM DMA register at 0x4014
 				//>= 0x4000 and <= 0x4017 => APU[(address - 0x4000) - 0x4000], // APU registers
 				_ => 0
 			};
 
 			set => _ = address switch
 			{
-				>= 0x0000 and <= 0x1fff => Ram[address & 0x07ff] = value,            // 2k RAM
-				>= 0x2000 and <= 0x3fff => Ppu[(address - 0x2000) & 0x0007] = value, // PPU registers
-
+				>= 0x0000 and <= 0x1fff => Ram[address & 0x07ff] = value, // 2k RAM
+				>= 0x2000 and <= 0x3fff => Ppu[address & 0x0007] = value, // PPU registers
+				0x4014                  => Ppu[0x14] = value,             // OAM DMA register at 0x4014
 				//>= 0x4000 and <= 0x4017 => APU[(address - 0x4000) - 0x4000] = value, // APU registers
 				_ => 0
 			};
