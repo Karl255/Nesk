@@ -237,6 +237,8 @@ namespace Nesk
 		{
 			if (IsFrameReady)
 			{
+				IsFrameReady = false;
+
 				byte[] frameBuffer = BlankBuffer.CloneArray();
 				int start = frameBuffer[0x0A];
 
@@ -246,11 +248,11 @@ namespace Nesk
 					{
 						int patternId = Memory[0x2000 + 32 * nametableY + nametableX + (Control.BackgroundAddress ? 0x1000 : 0)];
 
-						int palette = -1;
-						var color0 = palette >= 0 ? ColorPalette[Memory[0x3f00]]                   : ((byte)0  , (byte)0  , (byte)0  );
-						var color1 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 1]] : ((byte)255, (byte)0  , (byte)0  );
-						var color2 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 2]] : ((byte)0  , (byte)255, (byte)0  );
-						var color3 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 3]] : ((byte)0  , (byte)0  , (byte)255);
+						int palette = Memory[0x23c0 + nametableY / 4 * 8 + nametableX / 4] >> (nametableY / 2 % 2 * 2 + nametableX % 2);
+						var color0 = ColorPalette[Memory[0x3f00]];
+						var color1 = ColorPalette[Memory[0x3f00 + palette * 4 + 1]];
+						var color2 = ColorPalette[Memory[0x3f00 + palette * 4 + 2]];
+						var color3 = ColorPalette[Memory[0x3f00 + palette * 4 + 3]];
 
 						for (int spriteY = 0; spriteY < 8; spriteY++)
 						{

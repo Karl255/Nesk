@@ -16,6 +16,7 @@ namespace Nesk.UI
 		private string RomPath = null;
 
 		private CheckMenuItem PauseButton;
+		private ButtonMenuItem HardResetButton;
 
 		private bool IsRunning
 		{
@@ -57,6 +58,7 @@ namespace Nesk.UI
 			PauseButton = new()
 			{
 				Text = "Pause",
+				Enabled = false,
 				Checked = true,
 				Shortcut = Application.Instance.CommonModifier | Keys.P
 			};
@@ -72,6 +74,12 @@ namespace Nesk.UI
 				}
 			};
 
+			HardResetButton = new ButtonMenuItem(async (_, _) => await HardResetEmulation())
+			{
+				Text = "Hard reset",
+				Enabled = false
+			};
+
 			Menu = new MenuBar
 			{
 				Items =
@@ -83,7 +91,7 @@ namespace Nesk.UI
 						Items =
 						{
 							new ButtonMenuItem(async (_, _) => await OpenROM()) { Text = "Open ROM..." },
-							new ButtonMenuItem(async (_, _) => await HardResetEmulation()) { Text = "Hard reset" },
+							HardResetButton,
 							PauseButton
 						}
 					},
@@ -215,6 +223,8 @@ namespace Nesk.UI
 					.CreateConsole();
 
 				Clock.Interval = 1 / Console.FrameRate;
+				PauseButton.Enabled = true;
+				HardResetButton.Enabled = true;
 				if (autoStart)
 					IsRunning = true;
 			}
@@ -226,6 +236,7 @@ namespace Nesk.UI
 		private async Task HardResetEmulation()
 		{
 			IsRunning = false;
+			RepaintDisplay(BlackFrame);
 			await CreateConsole(true);
 		}
 
