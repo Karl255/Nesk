@@ -57,6 +57,7 @@ namespace Nesk.UI
 			PauseButton = new()
 			{
 				Text = "Pause",
+				Checked = true,
 				Shortcut = Application.Instance.CommonModifier | Keys.P
 			};
 
@@ -141,7 +142,7 @@ namespace Nesk.UI
 								byte[] frame = Console.TickToNextFrame();
 								sw.Stop();
 								RepaintDisplay(frame);
-								MessageBox.Show("Finished! Took " + sw.Elapsed.ToString());
+								MessageBox.Show(this, "Finished! Took " + sw.Elapsed.ToString());
 
 								IsRunning = wasRunning;
 							}) { Text = "Benchmark frame" },
@@ -190,7 +191,7 @@ namespace Nesk.UI
 
 			try
 			{
-				await CreateAndStartConsole(romPath);
+				await CreateConsole(false, romPath);
 				RomPath = romPath;
 				int t = Math.Max(romPath.LastIndexOf('\\'), romPath.LastIndexOf('/')) + 1;
 				Title = "Nesk | " + romPath[t..^4];
@@ -205,7 +206,7 @@ namespace Nesk.UI
 		/// <summary>
 		/// Initializes <see cref="Console"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
 		/// </summary>
-		private async Task CreateAndStartConsole(string romPath = null)
+		private async Task CreateConsole(bool autoStart, string romPath = null)
 		{
 			if (romPath != null || RomPath != null)
 			{
@@ -214,7 +215,8 @@ namespace Nesk.UI
 					.CreateConsole();
 
 				Clock.Interval = 1 / Console.FrameRate;
-				IsRunning = true;
+				if (autoStart)
+					IsRunning = true;
 			}
 		}
 
@@ -224,7 +226,7 @@ namespace Nesk.UI
 		private async Task HardResetEmulation()
 		{
 			IsRunning = false;
-			await CreateAndStartConsole();
+			await CreateConsole(true);
 		}
 
 		/// <summary>

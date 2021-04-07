@@ -19,6 +19,7 @@ namespace Nesk
 
 			var cpuBus = cartridge.GetCPUMapper(ppu, apu);
 			var cpu = new K6502(cpuBus, false);
+			ppu.NmiRaiser = cpu.SetNMI;
 
 			FrameRate = cartridge.TimingMode == TimingMode.NTSC ? 29.97 : 25.00;
 			Cpu = cpu;

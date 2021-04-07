@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using System;
+using System.Collections.Immutable;
 using K6502Emu;
 using Nesk.Shared;
 
@@ -30,6 +31,8 @@ namespace Nesk
 
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
+
+		public Action NmiRaiser { private get; set; }
 
 		private readonly ImmutableArray<(byte, byte, byte)> ColorPalette = ImmutableArray.Create(new (byte, byte, byte)[]
 		{
@@ -149,6 +152,9 @@ namespace Nesk
 				switch (address)
 				{
 					case 0: // control
+						if (Status.VerticalBlank && !Control.GenerateNMI && (value & 0x80) != 0)
+							NmiRaiser.Invoke();
+
 						Control.Byte = value;
 						break;
 
@@ -217,7 +223,11 @@ namespace Nesk
 			}
 
 			if (Scanline == 241 && Cycle == 1)
+			{
 				Status.VerticalBlank = true;
+				if (Control.GenerateNMI)
+					NmiRaiser.Invoke();
+			}
 
 			if (Scanline == 261 && Cycle == 1)
 				Status.VerticalBlank = false;
@@ -230,25 +240,46 @@ namespace Nesk
 				byte[] frameBuffer = BlankBuffer.CloneArray();
 				int start = frameBuffer[0x0A];
 
-				for (int tileY = 0; tileY < 30; tileY++)
+				for (int nametableY = 0; nametableY < 30; nametableY++)
 				{
-					for (int tileX = 0; tileX < 32; tileX++)
+					for (int nametableX = 0; nametableX < 32; nametableX++)
 					{
-						int patternId = Memory[0x2000 + 32 * tileY + tileX];
+						int patternId = Memory[0x2000 + 32 * nametableY + nametableX + (Control.BackgroundAddress ? 0x1000 : 0)];
 
-						for (int i = 0; i < 8; i++)
+						int palette = -1;
+						var color0 = palette >= 0 ? ColorPalette[Memory[0x3f00]]                   : ((byte)0  , (byte)0  , (byte)0  );
+						var color1 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 1]] : ((byte)255, (byte)0  , (byte)0  );
+						var color2 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 2]] : ((byte)0  , (byte)255, (byte)0  );
+						var color3 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 3]] : ((byte)0  , (byte)0  , (byte)255);
+
+						for (int spriteY = 0; spriteY < 8; spriteY++)
 						{
-							byte v = (patternId & 0xf0) != 0 ? 255 : 0;
+							int rowByteLower = Memory[patternId * 16 + spriteY];
+							int rowByteUpper = Memory[patternId * 16 + spriteY + 0x0008];
 
-							int x = tileX * 8 + i;
-							int y = 239 - tileY * 8;
+							for (int spriteX = 0; spriteX < 8; spriteX++)
+							{
+								int totalX = nametableX * 8 + spriteX;
+								int totalY = 239 - (nametableY * 8 + spriteY);
 
-							frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
-							frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
-							frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
+								int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
+									| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
 
-							patternId <<= 1;
+								(
+									frameBuffer[start + (totalY * 256 + totalX) * 3 + 2], // R
+									frameBuffer[start + (totalY * 256 + totalX) * 3 + 1], // G
+									frameBuffer[start + (totalY * 256 + totalX) * 3 + 0]  // B
+								) = pixelColor switch
+								{
+									0 => color0,
+									1 => color1,
+									2 => color2,
+									3 => color3,
+									_ => ((byte)0, (byte)0, (byte)0)
+								};
+							}
 						}
+						
 					}
 				}
 
