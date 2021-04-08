@@ -63,9 +63,39 @@ namespace Nesk.Shared {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        public static byte[] BlankBitmap {
+        public static byte[] BlankBitmap1x {
             get {
-                object obj = ResourceManager.GetObject("BlankBitmap", resourceCulture);
+                object obj = ResourceManager.GetObject("BlankBitmap1x", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] BlankBitmap2x {
+            get {
+                object obj = ResourceManager.GetObject("BlankBitmap2x", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] BlankBitmap3x {
+            get {
+                object obj = ResourceManager.GetObject("BlankBitmap3x", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] BlankBitmap4x {
+            get {
+                object obj = ResourceManager.GetObject("BlankBitmap4x", resourceCulture);
                 return ((byte[])(obj));
             }
         }

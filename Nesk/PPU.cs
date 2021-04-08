@@ -8,7 +8,6 @@ namespace Nesk
 	public class Ppu : IAddressable<byte>
 	{
 		private IAddressable<byte> Memory { get; init; }
-
 		private byte[] Oam { get; init; } = new byte[256];
 
 		private PpuControlRegister Control = new(0x00);
@@ -29,17 +28,25 @@ namespace Nesk
 		private ushort OamDmaAddress = 0;
 		private bool IsOamDmaReading = false;
 
-		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap.CloneArray();
+		public Action NmiRaiser { private get; set; } = null;
+
 		private int Cycle = 0;
 		private int Scanline = 0;
 		public bool IsFrameReady { get; private set; }
 
+		private byte[,] InterBuffer { get; init; } = new byte[256, 240];
+		private static readonly byte[][] BlankBuffer = new byte[][]
+		{
+			Resources.BlankBitmap1x.CloneArray(),
+			Resources.BlankBitmap2x.CloneArray(),
+			Resources.BlankBitmap3x.CloneArray(),
+			Resources.BlankBitmap4x.CloneArray()
+		};
+
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
 
-		public Action NmiRaiser { private get; set; } = null;
-
-		private ImmutableArray<(byte, byte, byte)> ColorPalette { get; init; } = ImmutableArray.Create(new (byte, byte, byte)[]
+		private static readonly ImmutableArray<(byte R, byte G, byte B)> ColorPalette = ImmutableArray.Create(new (byte, byte, byte)[]
 		{
 			(84,  84,  84),
 			(0,   30,  116),
@@ -249,14 +256,34 @@ namespace Nesk
 				Status.VerticalBlank = false;
 		}
 
-		public byte[] GetFrame()
+		public static byte[] RenderInterFrame(byte[,] interFrame, int scale)
+		{
+			if (scale is < 1 or > 4)
+				throw new Exception($"Invalid frame scale ({scale}).");
+
+			byte[] buffer = BlankBuffer[scale - 1];
+			int start = buffer[0x0A];
+
+			for (int y = 0; y < 240 * scale; y++)
+			{
+				for (int x = 0; x < 256 * scale; x++)
+				{
+					int fixedY = 240 * scale - 1 - y;
+					var color = ColorPalette[interFrame[x / scale, y / scale] & 0x3f];
+					buffer[start + (fixedY * 256 * scale + x) * 3 + 0] = color.B; // B
+					buffer[start + (fixedY * 256 * scale + x) * 3 + 1] = color.G; // G
+					buffer[start + (fixedY * 256 * scale + x) * 3 + 2] = color.R; // R
+				}
+			}
+
+			return buffer;
+		}
+
+		public byte[,] GetFrame()
 		{
 			if (IsFrameReady)
 			{
 				IsFrameReady = false;
-
-				byte[] frameBuffer = BlankBuffer.CloneArray();
-				int start = frameBuffer[0x0A];
 
 				for (int nametableY = 0; nametableY < 30; nametableY++)
 				{
@@ -265,10 +292,10 @@ namespace Nesk
 						int patternId = Memory[0x2000 + 32 * nametableY + nametableX + (Control.BackgroundAddress ? 0x1000 : 0)];
 
 						int palette = Memory[0x23c0 + nametableY / 4 * 8 + nametableX / 4] >> (nametableY / 2 % 2 * 2 + nametableX % 2);
-						var color0 = ColorPalette[Memory[0x3f00]];
-						var color1 = ColorPalette[Memory[0x3f00 + palette * 4 + 1]];
-						var color2 = ColorPalette[Memory[0x3f00 + palette * 4 + 2]];
-						var color3 = ColorPalette[Memory[0x3f00 + palette * 4 + 3]];
+						var color0 = Memory[0x3f00];
+						var color1 = Memory[0x3f00 + palette * 4 + 1];
+						var color2 = Memory[0x3f00 + palette * 4 + 2];
+						var color3 = Memory[0x3f00 + palette * 4 + 3];
 
 						for (int spriteY = 0; spriteY < 8; spriteY++)
 						{
@@ -278,22 +305,18 @@ namespace Nesk
 							for (int spriteX = 0; spriteX < 8; spriteX++)
 							{
 								int totalX = nametableX * 8 + spriteX;
-								int totalY = 239 - (nametableY * 8 + spriteY);
+								int totalY = nametableY * 8 + spriteY;
 
 								int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
 									| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
 
-								(
-									frameBuffer[start + (totalY * 256 + totalX) * 3 + 2], // R
-									frameBuffer[start + (totalY * 256 + totalX) * 3 + 1], // G
-									frameBuffer[start + (totalY * 256 + totalX) * 3 + 0]  // B
-								) = pixelColor switch
+								InterBuffer[totalX, totalY] = pixelColor switch
 								{
 									0 => color0,
 									1 => color1,
 									2 => color2,
 									3 => color3,
-									_ => ((byte)0, (byte)0, (byte)0)
+									_ => 0
 								};
 							}
 						}
@@ -301,7 +324,7 @@ namespace Nesk
 					}
 				}
 
-				return frameBuffer;
+				return InterBuffer;
 			}
 			else
 				return null;
@@ -334,15 +357,15 @@ namespace Nesk
 			*/
 		}
 
-		public byte[] RenderPatternMemory(int palette)
+		public byte[,] GetPatternMemoryAsFrame(int palette)
 		{
-			var color0 = palette >= 0 ? ColorPalette[Memory[0x3f00]]                   : ((byte)0  , (byte)0  , (byte)0  );
-			var color1 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 1]] : ((byte)255, (byte)0  , (byte)0  );
-			var color2 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 2]] : ((byte)0  , (byte)255, (byte)0  );
-			var color3 = palette >= 0 ? ColorPalette[Memory[0x3f00 + palette * 4 + 3]] : ((byte)0  , (byte)0  , (byte)255);
-
-			byte[] frameBuffer = BlankBuffer.CloneArray();
-			int start = frameBuffer[0x0A];
+			byte[] colors =
+			{
+				(byte)(palette >= 0 ? Memory[0x3f00]                   : 0x3f),
+				(byte)(palette >= 0 ? Memory[0x3f00 + palette * 4 + 1] : 0x27),
+				(byte)(palette >= 0 ? Memory[0x3f00 + palette * 4 + 2] : 0x36),
+				(byte)(palette >= 0 ? Memory[0x3f00 + palette * 4 + 3] : 0x11)
+			};
 
 			for (int sprite = 0; sprite < 256; sprite++)
 			{
@@ -354,22 +377,11 @@ namespace Nesk
 					for (int spriteX = 0; spriteX < 8; spriteX++)
 					{
 						int x = sprite % 16 * 8 + spriteX;
-						int y = 239 - (sprite / 16 * 8 + spriteY);
+						int y = sprite / 16 * 8 + spriteY;
 						int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
 							| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
 
-						(
-							frameBuffer[start + (y * 256 + x) * 3 + 2], // R
-							frameBuffer[start + (y * 256 + x) * 3 + 1], // G
-							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
-						) = pixelColor switch
-						{
-							0 => color0,
-							1 => color1,
-							2 => color2,
-							3 => color3,
-							_ => ((byte)0, (byte)0, (byte)0)
-						};
+						InterBuffer[x, y] = colors[pixelColor];
 					}
 				}
 			}
@@ -384,27 +396,24 @@ namespace Nesk
 					for (int spriteX = 0; spriteX < 8; spriteX++)
 					{
 						int x = sprite % 16 * 8 + spriteX + 128;
-						int y = 239 - (sprite / 16 * 8 + spriteY);
+						int y = sprite / 16 * 8 + spriteY;
 						int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
 							| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
 
-						(
-							frameBuffer[start + (y * 256 + x) * 3 + 2], // R
-							frameBuffer[start + (y * 256 + x) * 3 + 1], // G
-							frameBuffer[start + (y * 256 + x) * 3 + 0]  // B
-						) = pixelColor switch
-						{
-							0 => color0,
-							1 => color1,
-							2 => color2,
-							3 => color3,
-							_ => ((byte)0, (byte)0, (byte)0)
-						};
+						InterBuffer[x, y] = colors[pixelColor];
 					}
 				}
 			}
 
-			return frameBuffer;
+			for (int y = 128; y < 240; y++)
+			{
+				for (int x = 0; x < 256; x++)
+				{
+					InterBuffer[x, y] = 0x3f;
+				}
+			}
+
+			return InterBuffer;
 		}
 	}
 }

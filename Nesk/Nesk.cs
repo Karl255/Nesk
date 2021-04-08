@@ -45,7 +45,7 @@ namespace Nesk
 			Ppu.Tick();
 		}
 
-		public byte[] TickToNextFrame()
+		public byte[,] TickToNextFrame()
 		{
 			while (!Ppu.IsFrameReady)
 			{
@@ -56,7 +56,7 @@ namespace Nesk
 		}
 
 #if DEBUG
-		public byte[] RenderPatternMemory(int palette) => Ppu.RenderPatternMemory(palette);
+		public byte[,] RenderPatternMemory(int palette) => Ppu.GetPatternMemoryAsFrame(palette);
 
 		/// <summary>
 		/// Dumps the whole memory space to a byte array. PPU, APU and IO register locations are filled with <c>0xff</c>.

@@ -118,7 +118,16 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
-  <data name="BlankBitmap" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>resources\blank.bmp;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="BlankBitmap1x" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\BlankBitmap1x.bmp;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BlankBitmap2x" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\BlankBitmap2x.bmp;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BlankBitmap3x" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\BlankBitmap3x.bmp;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="BlankBitmap4x" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\BlankBitmap4x.bmp;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
 </root>

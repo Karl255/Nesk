@@ -12,11 +12,20 @@ namespace Nesk.UI
 {
 	public class NeskWindow : Form
 	{
-		private readonly byte[] BlackFrame = Shared.Resources.BlankBitmap;
+		private byte[][,] BlackFrame { get; init; } =
+		{
+			new byte[256 * 1, 240 * 1],
+			new byte[256 * 2, 240 * 2],
+			new byte[256 * 3, 240 * 3],
+			new byte[256 * 4, 240 * 4],
+		};
+
+		private byte[,] CurrentInterFrame;
+
 		private bool CanRenderNextFrame = true;
 		private UITimer Clock { get; init; }
 
-		private Nesk Console;
+		private Nesk Nes;
 		private string RomPath = null;
 
 		private CheckMenuItem PauseButton;
@@ -41,8 +50,27 @@ namespace Nesk.UI
 			}
 		}
 
+		private int _scale = 2;
+		public int Scale
+		{
+			get => _scale;
+			set
+			{
+				if (value is >= 1 and <= 4)
+				{
+					_scale = value;
+					RepaintDisplay(CurrentInterFrame);
+					ClientSize = new Size(256 * value, 240 * value);
+				}
+			}
+		}
+
+		private RadioMenuItem SetScaleRadioController { get; init; } = new();
+
+#if DEBUG
 		public int DebugSelectedPalette = -1;
-		private readonly RadioMenuItem DebugSelectPaletteRadioController = new();
+		private RadioMenuItem DebugSelectPaletteRadioController { get; init; } = new();
+#endif
 
 		public NeskWindow()
 		{
@@ -76,7 +104,7 @@ namespace Nesk.UI
 
 			PauseButton.CheckedChanged += (_, _) =>
 			{
-				if (Clock != null && Console != null)
+				if (Clock != null && Nes != null)
 				{
 					if (!PauseButton.Checked)
 						Clock.Start();
@@ -109,6 +137,26 @@ namespace Nesk.UI
 							PauseButton
 						}
 					},
+
+					// /View/
+					new ButtonMenuItem
+					{
+						Text = "&View",
+						Items =
+						{
+							new ButtonMenuItem
+							{
+								Text = "Screen scale",
+								Items =
+								{
+									new RadioMenuItem(new RadioCommand((_, _) => Scale = 1), SetScaleRadioController) { Text = "1x" },
+									new RadioMenuItem(new RadioCommand((_, _) => Scale = 2), SetScaleRadioController) { Text = "2x", Checked = true },
+									new RadioMenuItem(new RadioCommand((_, _) => Scale = 3), SetScaleRadioController) { Text = "3x" },
+									new RadioMenuItem(new RadioCommand((_, _) => Scale = 4), SetScaleRadioController) { Text = "4x" },
+								}
+							}
+						}
+					},
 #if DEBUG
 					// /Debug/
 					new ButtonMenuItem
@@ -120,7 +168,7 @@ namespace Nesk.UI
 							new ButtonMenuItem(async (_, _) =>
 							{
 								if (RomPath != null)
-									RepaintDisplay(await Task.Run(Console.TickToNextFrame));
+									RepaintDisplay(await Task.Run(() => Nes.TickToNextFrame()));
 							}) { Text = "Get next frame", Shortcut = Keys.Control | Keys.F },
 
 							// /Debug/Show patterns
@@ -149,7 +197,7 @@ namespace Nesk.UI
 							{
 								bool wasRunning = IsRunning;
 								IsRunning = false;
-								await File.WriteAllBytesAsync("memory-dump.bin", Console.DumpMemory());
+								await File.WriteAllBytesAsync("memory-dump.bin", Nes.DumpMemory());
 								IsRunning = wasRunning;
 							}) { Text = "Dump memory to file" },
 
@@ -161,7 +209,7 @@ namespace Nesk.UI
 
 								System.Diagnostics.Stopwatch sw = new();
 								sw.Start();
-								byte[] frame = Console.TickToNextFrame();
+								byte[,] frame = Nes.TickToNextFrame();
 								sw.Stop();
 								RepaintDisplay(frame);
 								MessageBox.Show(this, "Finished! Took " + sw.Elapsed.ToString());
@@ -181,8 +229,17 @@ namespace Nesk.UI
 
 		private void InitContent()
 		{
-			Content = new ImageView();
+			for (int i = 1; i <= BlackFrame.Length; i++)
+			{
+				BlackFrame[i - 1].FillArray<byte>(256 * i, 240 * i, 0x3f);
+			}
+
+			BackgroundColor = Color.FromArgb(0, 0, 0);
 			Resizable = false;
+			ClientSize = new Size(256 * Scale, 240 * Scale);
+			CurrentInterFrame = BlackFrame[Scale - 1];
+			Content = new ImageView();
+
 			ClearDisplay();
 		}
 
@@ -195,7 +252,7 @@ namespace Nesk.UI
 				return;
 
 			CanRenderNextFrame = false;
-			RepaintDisplay(await Task.Run(Console.TickToNextFrame));
+			RepaintDisplay(await Task.Run(() => Nes.TickToNextFrame()));
 			CanRenderNextFrame = true;
 		}
 
@@ -233,17 +290,19 @@ namespace Nesk.UI
 		}
 
 		/// <summary>
-		/// Initializes <see cref="Console"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
+		/// Initializes <see cref="Nes"/> with a new instance of <see cref="Nesk"/> and starts the <see cref="Clock"/>.
 		/// </summary>
 		private async Task CreateConsole(bool autoStart, string romPath = null)
 		{
 			if (romPath != null || RomPath != null)
 			{
-				Console = (await File.ReadAllBytesAsync(romPath ?? RomPath))
+				ClearDisplay();
+
+				Nes = (await File.ReadAllBytesAsync(romPath ?? RomPath))
 					.ParseCartridge()
 					.CreateConsole(ReadInput);
 
-				Clock.Interval = 1 / Console.FrameRate;
+				Clock.Interval = 1 / Nes.FrameRate;
 				PauseButton.Enabled = true;
 				HardResetButton.Enabled = true;
 				if (autoStart)
@@ -257,23 +316,23 @@ namespace Nesk.UI
 		private async Task HardResetEmulation()
 		{
 			IsRunning = false;
-			RepaintDisplay(BlackFrame);
+			ClearDisplay();
 			await CreateConsole(true);
 		}
 
 		/// <summary>
-		/// Repaint the display with the specified frame buffer.
+		/// Repaint the display with the specified inter-frame buffer.
 		/// </summary>
-		/// <param name="frameBuffer">Array of bytes containing the bitmap image data of the frame.</param>
-		private void RepaintDisplay(byte[] frameBuffer)
+		/// <param name="interFrameBuffer">The inter-frame to be displayed - a 2D byte array of size 256x240.</param>
+		private void RepaintDisplay(byte[,] interFrameBuffer)
 			// TODO: check for memory leak, if present, add the following line of code:
 			//(Content as ImageView).Image?.Dispose();
-			=> (Content as ImageView).Image = new Bitmap(frameBuffer);
+			=> (Content as ImageView).Image = new Bitmap(Ppu.RenderInterFrame(CurrentInterFrame = interFrameBuffer, Scale));
 
 		/// <summary>
 		///	Repaints the display with a black frame
 		/// </summary>
-		private void ClearDisplay() => RepaintDisplay(BlackFrame.CloneArray());
+		private void ClearDisplay() => RepaintDisplay(BlackFrame[Scale - 1]);
 
 		private uint ReadInput()
 		{
@@ -294,7 +353,7 @@ namespace Nesk.UI
 			if (RomPath == null)
 				return;
 			IsRunning = false; // pause emulation
-			RepaintDisplay(Console.RenderPatternMemory(palette));
+			RepaintDisplay(Nes.RenderPatternMemory(palette));
 		}
 #endif
 	}
