@@ -5,6 +5,12 @@
 		<TargetFramework>net5.0-windows</TargetFramework>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	  <Optimize>true</Optimize>
+	  <DebugType>full</DebugType>
+	  <DebugSymbols>true</DebugSymbols>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="..\Nesk.UI\Nesk.UI.csproj" />
 	</ItemGroup>

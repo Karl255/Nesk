@@ -11,7 +11,9 @@ namespace Nesk.UI
 	public class NeskWindow : Form
 	{
 		private readonly byte[] BlackFrame = Shared.Resources.BlankBitmap;
+		private bool CanRenderNextFrame = true;
 		private UITimer Clock { get; init; }
+
 		private Nesk Console;
 		private string RomPath = null;
 
@@ -176,7 +178,14 @@ namespace Nesk.UI
 		/// Handles the <see cref="Timer.Elapsed"/> event of the <see cref="Clock"/> object by calling <see cref="Nesk.TickToNextFrame"/> and displays the generated frame.
 		/// </summary>
 		private async void ClockTickHandler(object sender, EventArgs e)
-			=> RepaintDisplay(await Task.Run(Console.TickToNextFrame));
+		{
+			if (!CanRenderNextFrame)
+				return;
+
+			CanRenderNextFrame = false;
+			RepaintDisplay(await Task.Run(Console.TickToNextFrame));
+			CanRenderNextFrame = true;
+		}
 
 		/// <summary>
 		/// Attempts to open the ROM at the specified path. If <paramref name="romPath"/> is omitted then a <see cref="FileDialog"/> is displayed which asks the user for the rom. The path is saved to <see cref="RomPath"/> if the ROM is valid. Automatically starts the emulation.
