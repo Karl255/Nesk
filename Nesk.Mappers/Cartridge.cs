@@ -205,9 +205,9 @@ namespace Nesk.Mappers
 			}
 		}
 
-		public CpuMapper GetCPUMapper(IAddressable<byte> ppu, IAddressable<byte> apu) => MapperNumber switch
+		public CpuMapper GetCPUMapper(IAddressable<byte> ppu, IAddressable<byte> apu, Func<uint> readInputCallback) => MapperNumber switch
 		{
-			000 => new CpuMapper000(ppu, apu, this),
+			000 => new CpuMapper000(ppu, apu, this, readInputCallback),
 			_ => throw new Exception($"Mapper {MapperNumber:000} is not supported.")
 		};
 

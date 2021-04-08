@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Threading.Tasks;
 using System.Timers;
@@ -19,6 +21,10 @@ namespace Nesk.UI
 
 		private CheckMenuItem PauseButton;
 		private ButtonMenuItem HardResetButton;
+
+		// key functions in order: right, left, down, up, start, select, b, a
+		private ImmutableArray<Keys> KeyConfig { get; init; } = ImmutableArray.Create(Keys.D, Keys.A, Keys.S, Keys.W, Keys.M, Keys.N, Keys.Comma, Keys.Period);
+		private HashSet<Keys> HeldKeys { get; init; } = new();
 
 		private bool IsRunning
 		{
@@ -48,6 +54,9 @@ namespace Nesk.UI
 			InitMenuBar();
 			InitContent();
 
+			KeyDown += (o, e) => HeldKeys.Add(e.Key);
+			KeyUp += (o, e) => HeldKeys.Remove(e.Key);
+
 			Content.AllowDrop = true;
 			Content.DragEnter += (o, e) => e.Effects = DragEffects.All;
 			Content.DragDrop += async (o, e) => await OpenROM(e.Data.Uris[0].LocalPath);
@@ -72,7 +81,10 @@ namespace Nesk.UI
 					if (!PauseButton.Checked)
 						Clock.Start();
 					else
+					{
 						Clock.Stop();
+						System.Threading.Thread.Sleep(1); // make sure it stops before doing anything
+					}
 				}
 			};
 
@@ -109,7 +121,7 @@ namespace Nesk.UI
 							{
 								if (RomPath != null)
 									RepaintDisplay(await Task.Run(Console.TickToNextFrame));
-							}) { Text = "Get next frame" },
+							}) { Text = "Get next frame", Shortcut = Keys.Control | Keys.F },
 
 							// /Debug/Show patterns
 							new ButtonMenuItem((_, _) => DebugRenderPatterns(DebugSelectedPalette)) { Text = "Show patterns" },
@@ -157,7 +169,7 @@ namespace Nesk.UI
 								IsRunning = wasRunning;
 							}) { Text = "Benchmark frame" },
 						}
-					}
+					},
 #endif
 				},
 				// /File/Exit
@@ -229,7 +241,7 @@ namespace Nesk.UI
 			{
 				Console = (await File.ReadAllBytesAsync(romPath ?? RomPath))
 					.ParseCartridge()
-					.CreateConsole();
+					.CreateConsole(ReadInput);
 
 				Clock.Interval = 1 / Console.FrameRate;
 				PauseButton.Enabled = true;
@@ -263,6 +275,20 @@ namespace Nesk.UI
 		/// </summary>
 		private void ClearDisplay() => RepaintDisplay(BlackFrame.CloneArray());
 
+		private uint ReadInput()
+		{
+			uint value = 0;
+
+			for (int i = 0; i < 8; i++)
+			{
+				value <<= 1;
+				value |= HeldKeys.Contains(KeyConfig[i]) ? 1u : 0u;
+			}
+
+			return value | 0xffffff00;
+		}
+
+#if DEBUG
 		private void DebugRenderPatterns(int palette)
 		{
 			if (RomPath == null)
@@ -270,5 +296,6 @@ namespace Nesk.UI
 			IsRunning = false; // pause emulation
 			RepaintDisplay(Console.RenderPatternMemory(palette));
 		}
+#endif
 	}
 }

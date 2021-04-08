@@ -6,7 +6,7 @@ namespace Nesk.UI.Gtk
 	class MainClass
 	{
 		[STAThread]
-		public static void Main(string[] args)
+		public static void Main()
 		{
 			new Application(Eto.Platforms.Gtk).Run(new NeskWindow());
 		}

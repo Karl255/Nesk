@@ -10,7 +10,7 @@ namespace Nesk.Mappers.CPUMappers
 		private readonly byte[] PrgRam;
 		private readonly int PrgRamAddressMask;
 
-		public CpuMapper000(IAddressable<byte> ppu, IAddressable<byte> apu, Cartridge cartridge) : base(ppu, apu)
+		public CpuMapper000(IAddressable<byte> ppu, IAddressable<byte> apu, Cartridge cartridge, Func<uint> inputReadCallback) : base(ppu, apu, inputReadCallback)
 		{
 			// make sure the PRG-ROM size is 8k or 16k
 			if (cartridge.PrgRom.Length != 16 * 1024    // 16k
