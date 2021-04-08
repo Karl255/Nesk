@@ -7,7 +7,9 @@ namespace Nesk
 {
 	public class Ppu : IAddressable<byte>
 	{
-		private readonly IAddressable<byte> Memory;
+		private IAddressable<byte> Memory { get; init; }
+
+		private byte[] Oam { get; init; } = new byte[256];
 
 		private PpuControlRegister Control = new(0x00);
 		private PpuMaskRegister    Mask    = new(0x00);
@@ -22,9 +24,12 @@ namespace Nesk
 		private bool AddressScrollLatch = true;
 		private int Address = 0x0000;
 		private byte DataBuffer = 0x00;
-		private byte OamDma = 0x00;
 
-		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap;
+		public bool IsOamDma { get; private set; } = false;
+		private ushort OamDmaAddress = 0;
+		private bool IsOamDmaReading = false;
+
+		private readonly byte[] BlankBuffer = Shared.Resources.BlankBitmap.CloneArray();
 		private int Cycle = 0;
 		private int Scanline = 0;
 		public bool IsFrameReady { get; private set; }
@@ -32,9 +37,9 @@ namespace Nesk
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
 
-		public Action NmiRaiser { private get; set; }
+		public Action NmiRaiser { private get; set; } = null;
 
-		private readonly ImmutableArray<(byte, byte, byte)> ColorPalette = ImmutableArray.Create(new (byte, byte, byte)[]
+		private ImmutableArray<(byte, byte, byte)> ColorPalette { get; init; } = ImmutableArray.Create(new (byte, byte, byte)[]
 		{
 			(84,  84,  84),
 			(0,   30,  116),
@@ -102,10 +107,7 @@ namespace Nesk
 			(0,   0,   0)
 		});
 
-		public Ppu(IAddressable<byte> memoryMapper)
-		{
-			Memory = memoryMapper;
-		}
+		public Ppu(IAddressable<byte> memoryMapper) => Memory = memoryMapper;
 
 		public byte this[int address]
 		{
@@ -136,10 +138,6 @@ namespace Nesk
 							returnedData = DataBuffer = Memory[address];
 						break;
 
-					case 0x14: // OAM DMA
-						returnedData = OamDma;
-						break;
-
 					default:
 						break;
 				}
@@ -153,7 +151,7 @@ namespace Nesk
 				{
 					case 0: // control
 						if (Status.VerticalBlank && !Control.GenerateNMI && (value & 0x80) != 0)
-							NmiRaiser.Invoke();
+							NmiRaiser?.Invoke();
 
 						Control.Byte = value;
 						break;
@@ -195,13 +193,31 @@ namespace Nesk
 						break;
 
 					case 0x14: // OAM DMA
-						OamDma = value;
+						OamDmaAddress = (ushort)(value << 8);
+						IsOamDma = true;
 						break;
 
 					default:
 						break;
 				}
 			}
+		}
+
+		// NOTE & TODO: 
+		public void DoOamDma(Mappers.CpuMapper cpuBus)
+		{
+			if (IsOamDmaReading)
+			{
+				Oam[(byte)OamDmaAddress] = cpuBus[OamDmaAddress];
+				OamDmaAddress++;
+
+				if (0xff == (byte)OamDmaAddress)
+				{
+					IsOamDma = false;
+				}
+			}
+
+			IsOamDmaReading = !IsOamDmaReading;
 		}
 
 		public void Tick()
@@ -226,7 +242,7 @@ namespace Nesk
 			{
 				Status.VerticalBlank = true;
 				if (Control.GenerateNMI)
-					NmiRaiser.Invoke();
+					NmiRaiser?.Invoke();
 			}
 
 			if (Scanline == 261 && Cycle == 1)
@@ -281,7 +297,7 @@ namespace Nesk
 								};
 							}
 						}
-						
+
 					}
 				}
 

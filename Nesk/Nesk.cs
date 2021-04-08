@@ -35,7 +35,12 @@ namespace Nesk
 
 			// the PPU clock is 3x faster than the CPU clock
 			if (TickCount % 3 == 0)
-				Cpu.Tick();
+			{
+				if (Ppu.IsOamDma)
+					Ppu.DoOamDma(CpuBus);
+				else
+					Cpu.Tick();
+			}
 
 			Ppu.Tick();
 		}
