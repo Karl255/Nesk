@@ -68,7 +68,21 @@ namespace Nesk.UI
 		private RadioMenuItem SetScaleRadioController { get; init; } = new();
 
 #if DEBUG
-		public int DebugSelectedPalette = -1;
+
+		private int _debugSelectedPalette = -1;
+		public int Debug_SelectedPalette
+		{
+			get => _debugSelectedPalette;
+			set
+			{
+				if (value is >= -1 and <= 7)
+				{
+					_debugSelectedPalette = value;
+					Debug_RenderPatterns();
+				}
+			}
+		}
+
 		private RadioMenuItem DebugSelectPaletteRadioController { get; init; } = new();
 #endif
 
@@ -172,7 +186,7 @@ namespace Nesk.UI
 							}) { Text = "Get next frame", Shortcut = Keys.Control | Keys.F },
 
 							// /Debug/Show patterns
-							new ButtonMenuItem((_, _) => DebugRenderPatterns(DebugSelectedPalette)) { Text = "Show patterns" },
+							new ButtonMenuItem((_, _) => Debug_RenderPatterns()) { Text = "Show patterns" },
 
 							// /Debug/Select palette
 							new ButtonMenuItem
@@ -180,15 +194,27 @@ namespace Nesk.UI
 								Text = "Use palette",
 								Items =
 								{
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = -1), DebugSelectPaletteRadioController) { Text = "None", Checked = true },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 0), DebugSelectPaletteRadioController) { Text = "Palette 0" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 1), DebugSelectPaletteRadioController) { Text = "Palette 1" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 2), DebugSelectPaletteRadioController) { Text = "Palette 2" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 3), DebugSelectPaletteRadioController) { Text = "Palette 3" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 4), DebugSelectPaletteRadioController) { Text = "Palette 4" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 5), DebugSelectPaletteRadioController) { Text = "Palette 5" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 6), DebugSelectPaletteRadioController) { Text = "Palette 6" },
-									new RadioMenuItem(new RadioCommand((_, _) => DebugSelectedPalette = 7), DebugSelectPaletteRadioController) { Text = "Palette 7" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = -1), DebugSelectPaletteRadioController) { Text = "None", Checked = true },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 0), DebugSelectPaletteRadioController) { Text = "Palette 0" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 1), DebugSelectPaletteRadioController) { Text = "Palette 1" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 2), DebugSelectPaletteRadioController) { Text = "Palette 2" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 3), DebugSelectPaletteRadioController) { Text = "Palette 3" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 4), DebugSelectPaletteRadioController) { Text = "Palette 4" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 5), DebugSelectPaletteRadioController) { Text = "Palette 5" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 6), DebugSelectPaletteRadioController) { Text = "Palette 6" },
+									new RadioMenuItem(new RadioCommand((_, _) => Debug_SelectedPalette = 7), DebugSelectPaletteRadioController) { Text = "Palette 7" },
+								}
+							},
+
+							new ButtonMenuItem
+							{
+								Text = "Show nametable",
+								Items =
+								{
+									new ButtonMenuItem((_, _) => Debug_RenderNametable(0)) { Text = "Nametable 0" },
+									new ButtonMenuItem((_, _) => Debug_RenderNametable(1)) { Text = "Nametable 1" },
+									new ButtonMenuItem((_, _) => Debug_RenderNametable(2)) { Text = "Nametable 2" },
+									new ButtonMenuItem((_, _) => Debug_RenderNametable(3)) { Text = "Nametable 3" },
 								}
 							},
 
@@ -348,12 +374,20 @@ namespace Nesk.UI
 		}
 
 #if DEBUG
-		private void DebugRenderPatterns(int palette)
+		private void Debug_RenderPatterns()
 		{
 			if (RomPath == null)
 				return;
 			IsRunning = false; // pause emulation
-			RepaintDisplay(Nes.RenderPatternMemory(palette));
+			RepaintDisplay(Nes.Debug_RenderPatternMemory(Debug_SelectedPalette));
+		}
+
+		private void Debug_RenderNametable(int nametable)
+		{
+			if (RomPath == null)
+				return;
+			IsRunning = false; // pause emulation
+			RepaintDisplay(Nes.Debug_RenderNametable(nametable));
 		}
 #endif
 	}

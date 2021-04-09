@@ -5,10 +5,10 @@ namespace Nesk.Mappers.CPUMappers
 {
 	public class CpuMapper000 : CpuMapper
 	{
-		private readonly byte[] PrgRom;
-		private readonly int PrgRomAddressMask;
-		private readonly byte[] PrgRam;
-		private readonly int PrgRamAddressMask;
+		private byte[] PrgRom { get; init; }
+		private int PrgRomAddressMask { get; init; }
+		private byte[] PrgRam { get; init; }
+		private int PrgRamAddressMask { get; init; }
 
 		public CpuMapper000(IAddressable<byte> ppu, IAddressable<byte> apu, Cartridge cartridge, Func<uint> inputReadCallback) : base(ppu, apu, inputReadCallback)
 		{

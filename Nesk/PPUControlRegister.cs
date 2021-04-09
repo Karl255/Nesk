@@ -62,7 +62,7 @@ namespace Nesk
 		/// Does essentially nothing.
 		/// </summary>
 		public bool MasterSlave       { get; set; }
-		public bool GenerateNMI       { get; set; }
+		public bool GenerateNmi       { get; set; }
 
 		public PpuControlRegister(byte value)
 		{
@@ -72,7 +72,7 @@ namespace Nesk
 			BackgroundAddress = (value & 0b0001_0000) != 0;
 			SpriteSize        = (value & 0b0010_0000) != 0;
 			MasterSlave       = (value & 0b0100_0000) != 0;
-			GenerateNMI       = (value & 0b1000_0000) != 0;
+			GenerateNmi       = (value & 0b1000_0000) != 0;
 		}
 
 		public int Byte
@@ -83,7 +83,7 @@ namespace Nesk
 				| (BackgroundAddress.ToInt() << 4)
 				| (SpriteSize.ToInt()        << 5)
 				| (MasterSlave.ToInt()       << 6)
-				| (GenerateNMI.ToInt()       << 7);
+				| (GenerateNmi.ToInt()       << 7);
 
 			set
 			{
@@ -93,7 +93,7 @@ namespace Nesk
 				BackgroundAddress = (value & 0b0001_0000) != 0;
 				SpriteSize        = (value & 0b0010_0000) != 0;
 				MasterSlave       = (value & 0b0100_0000) != 0;
-				GenerateNMI       = (value & 0b1000_0000) != 0;
+				GenerateNmi       = (value & 0b1000_0000) != 0;
 			}
 		}
 	}

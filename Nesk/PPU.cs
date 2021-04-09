@@ -14,18 +14,16 @@ namespace Nesk
 		private PpuMaskRegister    Mask    = new(0x00);
 		private PpuStatusRegister  Status  = new(0b1010_0000);
 
-		private byte OamAddress = 0x00;
-		private byte OamData = 0x00;
-
 		private byte ScrollX = 0x00;
 		private byte ScrollY = 0x00;
 
 		private bool AddressScrollLatch = true;
-		private int Address = 0x0000;
+		private DoubleRegister Address = new(0x0000);
 		private byte DataBuffer = 0x00;
 
+		private byte OamAddress = 0x00;
 		public bool IsOamDma { get; private set; } = false;
-		private ushort OamDmaAddress = 0;
+		private DoubleRegister OamDmaAddress = new(0);
 		private bool IsOamDmaReading = false;
 
 		public Action NmiRaiser { private get; set; } = null;
@@ -131,18 +129,17 @@ namespace Nesk
 						break;
 
 					case 4: // OAM Data
-						returnedData = OamData;
+						returnedData = Oam[OamAddress];
 						break;
 
 					case 7: // data
-							// reading is delayed by 1 cycle (except for palette memory)
-						if (Address < 0x3f00)
-						{
+							// read "The PPUDATA read buffer (post-fetch)" http://wiki.nesdev.com/w/index.php/PPU_registers#PPUDATA
+						if (Address.Whole < 0x3f00)
 							returnedData = DataBuffer;
-							DataBuffer = Memory[Address];
-						}
 						else
-							returnedData = DataBuffer = Memory[address];
+							returnedData = Memory[address];
+
+						DataBuffer = Memory[Address.Whole];
 						break;
 
 					default:
@@ -157,7 +154,8 @@ namespace Nesk
 				switch (address)
 				{
 					case 0: // control
-						if (Status.VerticalBlank && !Control.GenerateNMI && (value & 0x80) != 0)
+						// if vblank and GenerateNmi goes from off (low) to on (high)
+						if (Status.VerticalBlank && !Control.GenerateNmi && (value & 0x80) != 0)
 							NmiRaiser?.Invoke();
 
 						Control.Byte = value;
@@ -172,14 +170,15 @@ namespace Nesk
 						break;
 
 					case 4: // OAM data
-						OamData = value;
+						Oam[OamAddress] = value;
 						break;
 
 					case 5: // scroll
+							// first x scroll then y scroll (initial value of the latch is 1)
 						if (AddressScrollLatch)
-							ScrollY = value;
-						else
 							ScrollX = value;
+						else
+							ScrollY = value;
 
 						AddressScrollLatch = !AddressScrollLatch;
 						break;
@@ -187,20 +186,20 @@ namespace Nesk
 					case 6: // address
 							// first high byte then low byte (initial value of the latch is 1)
 						if (AddressScrollLatch)
-							Address = (Address & 0xff) | (value << 8);
+							Address.Upper = value;
 						else
-							Address = (Address & 0xff00) | value;
+							Address.Lower = value;
 
 						AddressScrollLatch = !AddressScrollLatch;
 						break;
 
 					case 7: // data
-						Memory[Address] = DataBuffer = value;
-						Address += Control.IncrementMode ? 32 : 1;
+						Memory[Address.Whole] = value;
+						Address.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 						break;
 
 					case 0x14: // OAM DMA
-						OamDmaAddress = (ushort)(value << 8);
+						OamDmaAddress.Upper = value;
 						IsOamDma = true;
 						break;
 
@@ -210,18 +209,16 @@ namespace Nesk
 			}
 		}
 
-		// NOTE & TODO: 
+		// NOTE & TODO: this takes 512 CPU cycles instead of 513/514; imeplement correct timimng
 		public void DoOamDma(Mappers.CpuMapper cpuBus)
 		{
 			if (IsOamDmaReading)
 			{
-				Oam[(byte)OamDmaAddress] = cpuBus[OamDmaAddress];
-				OamDmaAddress++;
+				Oam[OamDmaAddress.Lower] = cpuBus[OamDmaAddress.Whole];
+				OamDmaAddress.Lower++;
 
-				if (0xff == (byte)OamDmaAddress)
-				{
+				if (OamDmaAddress.Lower == 0xff)
 					IsOamDma = false;
-				}
 			}
 
 			IsOamDmaReading = !IsOamDmaReading;
@@ -233,25 +230,28 @@ namespace Nesk
 
 			Cycle++;
 
-			if (Cycle >= 341)
+			if (Cycle > 341)
 			{
 				Cycle = 0;
 				Scanline++;
 
-				if (Scanline >= 261)
+				if (Scanline > 261)
 				{
 					Scanline = -1;
 					IsFrameReady = true;
 				}
 			}
 
+			// vblank start
 			if (Scanline == 241 && Cycle == 1)
 			{
 				Status.VerticalBlank = true;
-				if (Control.GenerateNMI)
+				Status.Sprite0Hit = false;
+				if (Control.GenerateNmi)
 					NmiRaiser?.Invoke();
 			}
 
+			// vblank end
 			if (Scanline == 261 && Cycle == 1)
 				Status.VerticalBlank = false;
 		}
@@ -328,33 +328,6 @@ namespace Nesk
 			}
 			else
 				return null;
-
-			/*
-			if (IsFrameReady)
-			{
-				IsFrameReady = false;
-
-				// generate greyscale noise and return that as the frame
-				byte[] frameBuffer = BlankBuffer.CloneArray();
-				int start = frameBuffer[0x0A];
-				Random rand = new();
-
-				for (int y = 0; y < 240; y++)
-				{
-					for (int x = 0; x < 256;
-					{
-						byte v = (byte)rand.Next();
-						frameBuffer[start + (y * 256 + x) * 3 + 0] = v; //B
-						frameBuffer[start + (y * 256 + x) * 3 + 1] = v; //G
-						frameBuffer[start + (y * 256 + x) * 3 + 2] = v; //R
-					}
-				}
-
-				return frameBuffer;
-			}
-			else
-				return null;
-			*/
 		}
 
 		public byte[,] GetPatternMemoryAsFrame(int palette)
@@ -410,6 +383,59 @@ namespace Nesk
 				for (int x = 0; x < 256; x++)
 				{
 					InterBuffer[x, y] = 0x3f;
+				}
+			}
+
+			return InterBuffer;
+		}
+
+		public byte[,] GetNametableAsFrame(int nametable)
+		{
+			int nametableStart = nametable switch
+			{
+				0 => 0x2000,
+				1 => 0x2400,
+				2 => 0x2800,
+				3 => 0x2c00,
+				_ => 0x2000
+			};
+
+			for (int nametableY = 0; nametableY < 30; nametableY++)
+			{
+				for (int nametableX = 0; nametableX < 32; nametableX++)
+				{
+					int patternId = Memory[nametableStart + 32 * nametableY + nametableX + (Control.BackgroundAddress ? 0x1000 : 0)];
+
+					int palette = Memory[nametableStart + 0x03c0 + nametableY / 4 * 8 + nametableX / 4] >> (nametableY / 2 % 2 * 2 + nametableX % 2);
+					var color0 = Memory[0x3f00];
+					var color1 = Memory[0x3f00 + palette * 4 + 1];
+					var color2 = Memory[0x3f00 + palette * 4 + 2];
+					var color3 = Memory[0x3f00 + palette * 4 + 3];
+
+					for (int spriteY = 0; spriteY < 8; spriteY++)
+					{
+						int rowByteLower = Memory[patternId * 16 + spriteY];
+						int rowByteUpper = Memory[patternId * 16 + spriteY + 0x0008];
+
+						for (int spriteX = 0; spriteX < 8; spriteX++)
+						{
+							int totalX = nametableX * 8 + spriteX;
+							int totalY = nametableY * 8 + spriteY;
+
+							int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
+									| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
+
+							InterBuffer[totalX, totalY] = pixelColor switch
+							{
+								0 => color0,
+								1 => color1,
+								2 => color2,
+								3 => color3,
+								_ => 0
+							};
+						}
+					}
+
 				}
 			}
 

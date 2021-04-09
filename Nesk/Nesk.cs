@@ -56,7 +56,7 @@ namespace Nesk
 		}
 
 #if DEBUG
-		public byte[,] RenderPatternMemory(int palette) => Ppu.GetPatternMemoryAsFrame(palette);
+		public byte[,] Debug_RenderPatternMemory(int palette) => Ppu.GetPatternMemoryAsFrame(palette);
 
 		/// <summary>
 		/// Dumps the whole memory space to a byte array. PPU, APU and IO register locations are filled with <c>0xff</c>.
@@ -79,6 +79,8 @@ namespace Nesk
 
 			return dump;
 		}
+
+		public byte[,] Debug_RenderNametable(int nametable) => Ppu.GetNametableAsFrame(nametable);
 #endif
 	}
 }

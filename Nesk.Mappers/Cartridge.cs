@@ -158,8 +158,9 @@ namespace Nesk.Mappers
 				// format: 1111 EEEE EEMM
 				// final value: = 2^E * (M * 2 + 1) B
 				ChrRomSize = (int)Math.Pow(2, (ChrRomSize & 0x0fc) >> 2) * (ChrRomSize * 2 + 1);
-			else
-				// final value is in 8k units (gets converted to B)
+			else if (ChrRomSize == 0) // CHR ROM not present => uses CHR RAM
+				ChrRamSize = 8 * 1024;
+			else // final value is in 8k units (gets converted to B)
 				ChrRomSize *= 8 * 1024;
 
 			NametableMirroring = (fileData[6].GetBit(3), fileData[6].GetBit(1)) switch
