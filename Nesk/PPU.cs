@@ -14,11 +14,14 @@ namespace Nesk
 		private PpuMaskRegister    Mask    = new(0x00);
 		private PpuStatusRegister  Status  = new(0b1010_0000);
 
-		private byte ScrollX = 0x00;
-		private byte ScrollY = 0x00;
+		private byte CoarseScrollX = 0;
+		private byte CoarseScrollY = 0;
+		private byte FineScrollX = 0;
+		private byte FineScrollY = 0;
 
-		private bool AddressScrollLatch = true;
+		private bool AddressScrollWriteLatch = true;
 		private DoubleRegister Address = new(0x0000);
+		private byte RegisterAccessNoise = 0x00;
 		private byte DataBuffer = 0x00;
 
 		private byte OamAddress = 0x00;
@@ -123,9 +126,9 @@ namespace Nesk
 				{
 					case 2: // status
 							// top 3 bytes exist, the bottom 5 don't, so static noise determines them
-						returnedData = (byte)(Status.Byte | (DataBuffer & 0x1f));
+						returnedData = (byte)(Status.Byte | (RegisterAccessNoise & 0x1f));
 						Status.VerticalBlank = false;
-						AddressScrollLatch = true; // reading from status resets the write latch for those 2 registers
+						AddressScrollWriteLatch = true; // reading from status resets the write latch for those 2 registers
 						break;
 
 					case 4: // OAM Data
@@ -135,26 +138,40 @@ namespace Nesk
 					case 7: // data
 							// read "The PPUDATA read buffer (post-fetch)" http://wiki.nesdev.com/w/index.php/PPU_registers#PPUDATA
 						if (Address.Whole < 0x3f00)
+						{
+							// reading from CHR or nametables
+							// this reading is delayed and goes through a buffer
 							returnedData = DataBuffer;
+							DataBuffer = Memory[Address.Whole];
+						}
 						else
-							returnedData = Memory[address];
+						{
+							// reading from palette
+							// palette reading has is instant as it's made up of static RAM
+							returnedData = Memory[Address.Whole];
+							// the nametable is still read from the underlying mirrored address
+							DataBuffer = Memory[0x2000 | Address.Whole & 0x0fff];
+						}
 
-						DataBuffer = Memory[Address.Whole];
+						Address.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 						break;
 
 					default:
 						break;
 				}
 
+				RegisterAccessNoise = returnedData;
 				return returnedData;
 			}
 
 			set
 			{
+				RegisterAccessNoise = value;
+
 				switch (address)
 				{
 					case 0: // control
-						// if vblank and GenerateNmi goes from off (low) to on (high)
+							// if vblank and GenerateNmi goes from off (low) to on (high)
 						if (Status.VerticalBlank && !Control.GenerateNmi && (value & 0x80) != 0)
 							NmiRaiser?.Invoke();
 
@@ -170,27 +187,27 @@ namespace Nesk
 						break;
 
 					case 4: // OAM data
-						Oam[OamAddress] = value;
+						Oam[OamAddress++] = value;
 						break;
 
 					case 5: // scroll
 							// first x scroll then y scroll (initial value of the latch is 1)
-						if (AddressScrollLatch)
-							ScrollX = value;
+						if (AddressScrollWriteLatch)
+							CoarseScrollX = value;
 						else
-							ScrollY = value;
+							CoarseScrollY = value;
 
-						AddressScrollLatch = !AddressScrollLatch;
+						AddressScrollWriteLatch = !AddressScrollWriteLatch;
 						break;
 
 					case 6: // address
 							// first high byte then low byte (initial value of the latch is 1)
-						if (AddressScrollLatch)
+						if (AddressScrollWriteLatch)
 							Address.Upper = value;
 						else
 							Address.Lower = value;
 
-						AddressScrollLatch = !AddressScrollLatch;
+						AddressScrollWriteLatch = !AddressScrollWriteLatch;
 						break;
 
 					case 7: // data
@@ -200,6 +217,7 @@ namespace Nesk
 
 					case 0x14: // OAM DMA
 						OamDmaAddress.Upper = value;
+						OamDmaAddress.Lower = OamAddress;
 						IsOamDma = true;
 						break;
 
@@ -217,7 +235,7 @@ namespace Nesk
 				Oam[OamDmaAddress.Lower] = cpuBus[OamDmaAddress.Whole];
 				OamDmaAddress.Lower++;
 
-				if (OamDmaAddress.Lower == 0xff)
+				if (OamDmaAddress.Lower == OamAddress)
 					IsOamDma = false;
 			}
 
