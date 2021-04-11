@@ -164,7 +164,7 @@ namespace Nesk
 							DataBuffer = Memory[0x2000 | AddressT.Whole & 0x0fff];
 						}
 
-						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+						AddressT.Whole = (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
 
 						if (Scanline is <= 240) // is rendering
 						{
@@ -195,7 +195,7 @@ namespace Nesk
 						if (Status.VerticalBlank && !Control.GenerateNmi && (value & 0x80) != 0)
 							NmiRaiser?.Invoke();
 
-						AddressT.Upper = (byte)(AddressT.Upper & 0x73 | (value << 2));
+						AddressT.Upper = (byte)(AddressT.Upper & 0x73 | ((value & 0x03) << 2));
 						Control.Byte = value;
 						break;
 
@@ -243,7 +243,7 @@ namespace Nesk
 
 					case 7: // data
 						Memory[AddressT.Whole] = value;
-						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+						AddressT.Whole += (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
 
 						if (Scanline is <= 240) // is rendering
 						{
@@ -251,7 +251,7 @@ namespace Nesk
 							IncrementAddressVVerticalFine();
 						}
 						else
-							CurrentVramAddressV += Control.IncrementMode ? 32 : 1;
+							CurrentVramAddressV = (ushort)((CurrentVramAddressV + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
 						break;
 
 					case 0x14: // OAM DMA
@@ -283,13 +283,7 @@ namespace Nesk
 
 		public void Tick()
 		{
-			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites || true;
-
-			if (Scanline == -1 && Cycle == 0)
-				System.Diagnostics.Debugger.Break();
-			
-			if (Cycle == 321)
-				System.Diagnostics.Debugger.Break();
+			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites;
 
 			// scanline specific
 			if (Scanline == -1) // -1 or 261 (pre-render scanline)
@@ -328,7 +322,7 @@ namespace Nesk
 								| ((CurrentVramAddressV >> 2) & 0x07)]; // high 3 bits of coarse X
 
 							// prematurely select the palette, makes things simpler
-							RenderingAttributeFetch >>= (((CurrentVramAddressV >> 4) & 1) << 1) + ((CurrentVramAddressV >> 1) & 1);
+							RenderingAttributeFetch >>= ((CurrentVramAddressV >> 6) & 0x2) + ((CurrentVramAddressV >> 2) & 1);
 
 							break;
 
@@ -383,9 +377,10 @@ namespace Nesk
 			{
 				if (Cycle is >= 1 and <= 256)
 				{
-					int patternBitmask = 1 << (7 - FineScrollX);
+					int patternBitmask = 0x80 >> FineScrollX;
 
-					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1 >> (7 - FineScrollX)) | (BgPatternShifterLower.Upper & patternBitmask >> (7 - FineScrollX));
+					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1 >> (7 - FineScrollX))
+						| ((BgPatternShifterLower.Upper & patternBitmask) >> (7 - FineScrollX));
 					int palette = BgAttributeShifter.Upper;
 
 					InterBuffer[Cycle - 1, Scanline] = Memory[0x3f00
@@ -397,8 +392,11 @@ namespace Nesk
 			{
 				if (Cycle == 1)
 				{
-					Status.VerticalBlank = true;
 					IsFrameReady = true;
+					Status.VerticalBlank = true;
+
+					if (Control.GenerateNmi)
+						NmiRaiser?.Invoke();
 				}
 			}
 
@@ -415,17 +413,20 @@ namespace Nesk
 					Scanline = -1;
 				}
 			}
+
+			if (AddressT.Whole > 0x7fff || CurrentVramAddressV > 0x7fff)
+				throw new Exception("!!!!");
 		}
 
 		private void IncrementAddressVHorizontalCoarse()
 		{
 			if ((CurrentVramAddressV & 0x001f) == 31) // if coarse X == 31
 			{
-				CurrentVramAddressV &= ~0x001f;
-				CurrentVramAddressV ^= ~0x0400;
+				CurrentVramAddressV &= ~0x001f;       // reset coarse X to 0
+				CurrentVramAddressV ^= 0x0400;        // switch horizontal nametable
 			}
 			else
-				CurrentVramAddressV++;
+				CurrentVramAddressV++;                // increment coarse X
 		}
 
 		private void IncrementAddressVVerticalFine()
@@ -440,7 +441,7 @@ namespace Nesk
 				if (coarseY == 29)
 				{
 					coarseY = 0;                                   // set coarse Y to 0
-					CurrentVramAddressV ^= 0x8000;                 // switch vertical nametable
+					CurrentVramAddressV ^= 0x0800;                 // switch vertical nametable
 				}
 				else if (coarseY == 31)
 					coarseY = 0;                                   // set coarse Y to 0, don't switch nametables
