@@ -285,8 +285,11 @@ namespace Nesk
 		{
 			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites || true;
 
-			//if (Scanline == 32 && Cycle >= 49)
-			//	System.Diagnostics.Debugger.Break();
+			if (Scanline == -1 && Cycle == 0)
+				System.Diagnostics.Debugger.Break();
+			
+			if (Cycle == 321)
+				System.Diagnostics.Debugger.Break();
 
 			// scanline specific
 			if (Scanline == -1) // -1 or 261 (pre-render scanline)
@@ -310,7 +313,7 @@ namespace Nesk
 
 			if (Scanline < 240) // -1..239
 			{
-				if (Cycle >= 0)
+				if (Cycle > 0)
 				{
 					switch ((Cycle - 1) & 0x7) // cycles 0 is idle
 					{
@@ -351,7 +354,7 @@ namespace Nesk
 					}
 				}
 
-				if (Cycle is >= 1 and <= 256 or >= 321 and <= 336) // cycles 1..256, 321..336
+				if (Cycle is >= 2 and <= 257 or >= 322 and <= 337) // cycles 2..257, 322..337
 				{
 					BgPatternShifterLower.Whole <<= 1;
 					BgPatternShifterUpper.Whole <<= 1;
@@ -382,7 +385,7 @@ namespace Nesk
 				{
 					int patternBitmask = 1 << (7 - FineScrollX);
 
-					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1) | (BgPatternShifterLower.Upper & patternBitmask);
+					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1 >> (7 - FineScrollX)) | (BgPatternShifterLower.Upper & patternBitmask >> (7 - FineScrollX));
 					int palette = BgAttributeShifter.Upper;
 
 					InterBuffer[Cycle - 1, Scanline] = Memory[0x3f00
@@ -397,13 +400,6 @@ namespace Nesk
 					Status.VerticalBlank = true;
 					IsFrameReady = true;
 				}
-			}
-
-			// all scanlines, specific cycles
-			if (Cycle == 257)
-			{
-				if (isRenderingEnabled)
-					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7be0) | (AddressT.Whole & 0x041f));
 			}
 
 			// cycle and scanline counting
