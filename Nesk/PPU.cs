@@ -243,7 +243,7 @@ namespace Nesk
 
 					case 7: // data
 						Memory[AddressT.Whole] = value;
-						AddressT.Whole += (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
+						AddressT.Whole = (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
 
 						if (Scanline is <= 240) // is rendering
 						{
@@ -283,7 +283,7 @@ namespace Nesk
 
 		public void Tick()
 		{
-			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites;
+			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites || true;
 
 			// scanline specific
 			if (Scanline == -1) // -1 or 261 (pre-render scanline)
@@ -413,9 +413,6 @@ namespace Nesk
 					Scanline = -1;
 				}
 			}
-
-			if (AddressT.Whole > 0x7fff || CurrentVramAddressV > 0x7fff)
-				throw new Exception("!!!!");
 		}
 
 		private void IncrementAddressVHorizontalCoarse()
