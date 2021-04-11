@@ -5,11 +5,11 @@ namespace Nesk.Mappers
 {
 	public abstract class CpuMapper : IAddressable<byte>
 	{
-		private byte[] Ram { get; init; } = new byte[2048];
-		private IAddressable<byte> Ppu { get; init; }
-		private IAddressable<byte> Apu { get; init; }
+		private readonly byte[] Ram = new byte[2048];
+		private readonly IAddressable<byte> Ppu;
+		private readonly IAddressable<byte> Apu;
 
-		private Func<uint> ReadInputState { get; init; }
+		private readonly Func<uint> ReadInputState;
 		private uint Controller1D0Input = 0xffffffff;
 
 		public CpuMapper(IAddressable<byte> ppu, IAddressable<byte> apu, Func<uint> readInputCallback)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
 using Eto.Drawing;
@@ -12,7 +13,7 @@ namespace Nesk.UI
 {
 	public class NeskWindow : Form
 	{
-		private byte[][,] BlackFrame { get; init; } =
+		private readonly byte[][,] BlackFrame =
 		{
 			new byte[256 * 1, 240 * 1],
 			new byte[256 * 2, 240 * 2],
@@ -23,7 +24,7 @@ namespace Nesk.UI
 		private byte[,] CurrentInterFrame;
 
 		private bool CanRenderNextFrame = true;
-		private UITimer Clock { get; init; }
+		private readonly UITimer Clock;
 
 		private Nesk Nes;
 		private string RomPath = null;
@@ -32,8 +33,8 @@ namespace Nesk.UI
 		private ButtonMenuItem HardResetButton;
 
 		// key functions in order: right, left, down, up, start, select, b, a
-		private ImmutableArray<Keys> KeyConfig { get; init; } = ImmutableArray.Create(Keys.D, Keys.A, Keys.S, Keys.W, Keys.M, Keys.N, Keys.Comma, Keys.Period);
-		private HashSet<Keys> HeldKeys { get; init; } = new();
+		private readonly ImmutableArray<Keys> KeyConfig = ImmutableArray.Create(Keys.D, Keys.A, Keys.S, Keys.W, Keys.M, Keys.N, Keys.Comma, Keys.Period);
+		private readonly HashSet<Keys> HeldKeys = new();
 
 		private bool IsRunning
 		{
@@ -67,8 +68,6 @@ namespace Nesk.UI
 
 		private RadioMenuItem SetScaleRadioController { get; init; } = new();
 
-#if DEBUG
-
 		private int _debugSelectedPalette = -1;
 		public int Debug_SelectedPalette
 		{
@@ -84,7 +83,6 @@ namespace Nesk.UI
 		}
 
 		private RadioMenuItem DebugSelectPaletteRadioController { get; init; } = new();
-#endif
 
 		public NeskWindow()
 		{
@@ -171,7 +169,7 @@ namespace Nesk.UI
 							}
 						}
 					},
-#if DEBUG
+
 					// /Debug/
 					new ButtonMenuItem
 					{
@@ -181,6 +179,8 @@ namespace Nesk.UI
 							// /Debug/Get next frame
 							new ButtonMenuItem(async (_, _) =>
 							{
+								IsRunning = false;
+
 								if (RomPath != null)
 									RepaintDisplay(await Task.Run(() => Nes.TickToNextFrame()));
 							}) { Text = "Get next frame", Shortcut = Keys.Control | Keys.F },
@@ -206,6 +206,7 @@ namespace Nesk.UI
 								}
 							},
 
+							// /Deubg/Show nametable
 							new ButtonMenuItem
 							{
 								Text = "Show nametable",
@@ -221,15 +222,32 @@ namespace Nesk.UI
 							// /Debug/Dump memory to file
 							new ButtonMenuItem(async(_, _) =>
 							{
+								if (RomPath == null)
+									return;
+
 								bool wasRunning = IsRunning;
 								IsRunning = false;
 								await File.WriteAllBytesAsync("memory-dump.bin", Nes.DumpMemory());
 								IsRunning = wasRunning;
 							}) { Text = "Dump memory to file" },
 
+							new ButtonMenuItem((_, _) =>
+							{
+								if (RomPath == null)
+									return;
+
+								bool wasRunning = IsRunning;
+								IsRunning = false;
+								MessageBox.Show(this, string.Join(", ", Nes.Debug_DumpPaletteMemory().Select(x => x.ToString("X2"))));
+								IsRunning = wasRunning;
+							}) { Text = "Show palette memory" },
+
 							// /Debug/Benchmark frame
 							new ButtonMenuItem((_, _) =>
 							{
+								if (RomPath == null)
+									return;
+
 								bool wasRunning = IsRunning;
 								IsRunning = false;
 
@@ -244,7 +262,6 @@ namespace Nesk.UI
 							}) { Text = "Benchmark frame" },
 						}
 					},
-#endif
 				},
 				// /File/Exit
 				QuitItem = new ButtonMenuItem((_, _) => Application.Instance.Quit()) { Text = "&Exit" },
@@ -306,7 +323,7 @@ namespace Nesk.UI
 				await CreateConsole(false, romPath);
 				RomPath = romPath;
 				int t = Math.Max(romPath.LastIndexOf('\\'), romPath.LastIndexOf('/')) + 1;
-				Title = "Nesk | " + romPath[t..^4];
+				Title = "NESK | " + romPath[t..^4];
 			}
 			catch (Exception e)
 			{
@@ -373,7 +390,6 @@ namespace Nesk.UI
 			return value | 0xffffff00;
 		}
 
-#if DEBUG
 		private void Debug_RenderPatterns()
 		{
 			if (RomPath == null)
@@ -389,6 +405,5 @@ namespace Nesk.UI
 			IsRunning = false; // pause emulation
 			RepaintDisplay(Nes.Debug_RenderNametable(nametable));
 		}
-#endif
 	}
 }

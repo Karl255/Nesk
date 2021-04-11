@@ -6,11 +6,11 @@ namespace Nesk
 {
 	public sealed class Nesk
 	{
-		private K6502 Cpu { get; init; }
-		private CpuMapper CpuBus { get; init; }
-		private Ppu Ppu { get; init; }
-		private PpuMapper PpuBus { get; init; }
-		private IAddressable<byte> Apu { get; init; }
+		private readonly K6502 Cpu;
+		private readonly CpuMapper CpuBus;
+		private readonly Ppu Ppu;
+		private readonly PpuMapper PpuBus;
+		private readonly IAddressable<byte> Apu;
 		private long TickCount = 0;
 
 		public double FrameRate;
@@ -33,7 +33,7 @@ namespace Nesk
 			TickCount++;
 			TickCount %= 3;
 
-			// the PPU clock is 3x faster than the CPU clock
+			// divided by 3 to form the CPU clock signal
 			if (TickCount % 3 == 0)
 			{
 				if (Ppu.IsOamDma)
@@ -55,7 +55,6 @@ namespace Nesk
 			return Ppu.GetFrame();
 		}
 
-#if DEBUG
 		public byte[,] Debug_RenderPatternMemory(int palette) => Ppu.GetPatternMemoryAsFrame(palette);
 
 		/// <summary>
@@ -81,6 +80,7 @@ namespace Nesk
 		}
 
 		public byte[,] Debug_RenderNametable(int nametable) => Ppu.GetNametableAsFrame(nametable);
-#endif
+
+		public byte[] Debug_DumpPaletteMemory() => Ppu.DumpPaletteMemory();
 	}
 }

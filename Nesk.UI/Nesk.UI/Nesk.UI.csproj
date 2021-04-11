@@ -15,6 +15,7 @@
 	  <Optimize>true</Optimize>
 	  <DebugType>full</DebugType>
 	  <DebugSymbols>true</DebugSymbols>
+	  <DefineConstants>DEBUG;TRACE</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>

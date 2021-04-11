@@ -7,22 +7,27 @@ namespace Nesk
 {
 	public class Ppu : IAddressable<byte>
 	{
-		private IAddressable<byte> Memory { get; init; }
-		private byte[] Oam { get; init; } = new byte[256];
+		private readonly IAddressable<byte> Memory;
+		private readonly byte[] Oam = new byte[256]; // stores all the 64 sprites
+		private readonly byte[] SecondaryOam = new byte[32]; //stores the 8 sprites for the scanline
 
 		private PpuControlRegister Control = new(0x00);
 		private PpuMaskRegister    Mask    = new(0x00);
 		private PpuStatusRegister  Status  = new(0b1010_0000);
-
-		private byte CoarseScrollX = 0;
-		private byte CoarseScrollY = 0;
-		private byte FineScrollX = 0;
-		private byte FineScrollY = 0;
-
-		private bool AddressScrollWriteLatch = true;
-		private DoubleRegister Address = new(0x0000);
+		private DoubleRegister AddressT = new(0x0000); // this is what you would usually refer to as the T register
+		private int CurrentVramAddressV = 0;           // ... V register
+		private bool RegisterWriteLatch = false;       // ... W latch
 		private byte RegisterAccessNoise = 0x00;
 		private byte DataBuffer = 0x00;
+		private byte FineScrollX = 0;
+
+		private DoubleRegister BgPatternShifterLower = new(0);
+		private DoubleRegister BgPatternShifterUpper = new(0);
+		private DoubleRegister BgAttributeShifter = new(0);    // combined 2 8-bit shifters into a single 16 bit shifter
+
+		private readonly byte[] SpritePatternShifters = new byte[8];
+		private readonly byte[] SpriteAttributeLatches = new byte[8];
+		private readonly byte[] SpriteXPositionCounters = new byte[8];
 
 		private byte OamAddress = 0x00;
 		public bool IsOamDma { get; private set; } = false;
@@ -31,11 +36,17 @@ namespace Nesk
 
 		public Action NmiRaiser { private get; set; } = null;
 
-		private int Cycle = 0;
-		private int Scanline = 0;
+		private byte RenderingNametableFetch = 0;
+		private byte RenderingAttributeFetch = 0;
+		private byte RenderingPatternLowerFetch = 0;
+		private byte RenderingPatternUpperFetch = 0;
+
+		private uint Cycle = 0;
+		private int Scanline = -1;
+		private bool IsOddFrame = false;
 		public bool IsFrameReady { get; private set; }
 
-		private byte[,] InterBuffer { get; init; } = new byte[256, 240];
+		private readonly byte[,] InterBuffer = new byte[256, 240];
 		private static readonly byte[][] BlankBuffer = new byte[][]
 		{
 			Resources.BlankBitmap1x.CloneArray(),
@@ -47,7 +58,7 @@ namespace Nesk
 		public int AddressableSize => 8;
 		public bool IsReadonly { get; set; }
 
-		private static readonly ImmutableArray<(byte R, byte G, byte B)> ColorPalette = ImmutableArray.Create(new (byte, byte, byte)[]
+		private static readonly ImmutableArray<(byte R, byte G, byte B)> MasterPalette = ImmutableArray.Create(new (byte, byte, byte)[]
 		{
 			(84,  84,  84),
 			(0,   30,  116),
@@ -128,7 +139,7 @@ namespace Nesk
 							// top 3 bytes exist, the bottom 5 don't, so static noise determines them
 						returnedData = (byte)(Status.Byte | (RegisterAccessNoise & 0x1f));
 						Status.VerticalBlank = false;
-						AddressScrollWriteLatch = true; // reading from status resets the write latch for those 2 registers
+						RegisterWriteLatch = false; // reading from status resets the write latch for those 2 registers
 						break;
 
 					case 4: // OAM Data
@@ -137,23 +148,32 @@ namespace Nesk
 
 					case 7: // data
 							// read "The PPUDATA read buffer (post-fetch)" http://wiki.nesdev.com/w/index.php/PPU_registers#PPUDATA
-						if (Address.Whole < 0x3f00)
+						if (AddressT.Whole < 0x3f00)
 						{
 							// reading from CHR or nametables
 							// this reading is delayed and goes through a buffer
 							returnedData = DataBuffer;
-							DataBuffer = Memory[Address.Whole];
+							DataBuffer = Memory[AddressT.Whole];
 						}
 						else
 						{
 							// reading from palette
 							// palette reading has is instant as it's made up of static RAM
-							returnedData = Memory[Address.Whole];
+							returnedData = Memory[AddressT.Whole];
 							// the nametable is still read from the underlying mirrored address
-							DataBuffer = Memory[0x2000 | Address.Whole & 0x0fff];
+							DataBuffer = Memory[0x2000 | AddressT.Whole & 0x0fff];
 						}
 
-						Address.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+
+						if (Scanline is <= 240) // is rendering
+						{
+							IncrementAddressVHorizontalCoarse();
+							IncrementAddressVVerticalFine();
+						}
+						else
+							CurrentVramAddressV += Control.IncrementMode ? 32 : 1;
+
 						break;
 
 					default:
@@ -175,6 +195,7 @@ namespace Nesk
 						if (Status.VerticalBlank && !Control.GenerateNmi && (value & 0x80) != 0)
 							NmiRaiser?.Invoke();
 
+						AddressT.Upper = (byte)(AddressT.Upper & 0x73 | (value << 2));
 						Control.Byte = value;
 						break;
 
@@ -191,28 +212,46 @@ namespace Nesk
 						break;
 
 					case 5: // scroll
-							// first x scroll then y scroll (initial value of the latch is 1)
-						if (AddressScrollWriteLatch)
-							CoarseScrollX = value;
+							// first x scroll then y scroll (initial value of the latch is 0)
+						if (RegisterWriteLatch)
+						{
+							AddressT.Whole = (ushort)((AddressT.Whole & 0x0c1f)
+								| ((value & 0xf8) << 2)                         // coarse Y
+								| ((value & 0x03) << 12));                      // fine Y
+						}
 						else
-							CoarseScrollY = value;
+						{
+							AddressT.Lower = (byte)((AddressT.Lower & 0xe0) | (value >> 3)); // set coarse X
+							FineScrollX = (byte)(value & 0x3);
+						}
 
-						AddressScrollWriteLatch = !AddressScrollWriteLatch;
+						RegisterWriteLatch = !RegisterWriteLatch;
 						break;
 
 					case 6: // address
-							// first high byte then low byte (initial value of the latch is 1)
-						if (AddressScrollWriteLatch)
-							Address.Upper = value;
+							// first high byte then low byte (initial value of the latch is 0)
+						if (RegisterWriteLatch)
+						{
+							AddressT.Lower = value;
+							CurrentVramAddressV = AddressT.Whole;
+						}
 						else
-							Address.Lower = value;
+							AddressT.Upper = (byte)(value & 0x3f);
 
-						AddressScrollWriteLatch = !AddressScrollWriteLatch;
+						RegisterWriteLatch = !RegisterWriteLatch;
 						break;
 
 					case 7: // data
-						Memory[Address.Whole] = value;
-						Address.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+						Memory[AddressT.Whole] = value;
+						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
+
+						if (Scanline is <= 240) // is rendering
+						{
+							IncrementAddressVHorizontalCoarse();
+							IncrementAddressVVerticalFine();
+						}
+						else
+							CurrentVramAddressV += Control.IncrementMode ? 32 : 1;
 						break;
 
 					case 0x14: // OAM DMA
@@ -244,34 +283,176 @@ namespace Nesk
 
 		public void Tick()
 		{
-			// TODO: implement proper ticking
+			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites || true;
 
-			Cycle++;
+			//if (Scanline == 32 && Cycle >= 49)
+			//	System.Diagnostics.Debugger.Break();
 
-			if (Cycle > 341)
+			// scanline specific
+			if (Scanline == -1) // -1 or 261 (pre-render scanline)
 			{
-				Cycle = 0;
-				Scanline++;
-
-				if (Scanline > 261)
+				// clear flags
+				if (Cycle == 1)
 				{
-					Scanline = -1;
+					Status.VerticalBlank = false;
+					Status.Sprite0Hit = false;
+					Status.SpriteOverflow = false;
+				}
+
+				// during these cycles, continuosly copy over the vertical bits from T to V
+				if (isRenderingEnabled && Cycle is >= 280 and <= 304)
+					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x041f) | (AddressT.Whole & 0x7be0));
+
+				// TODO: make this skip (0, 0) instead of (340, -1)
+				if (IsOddFrame && Cycle == 339) // skip last cycle on odd frames
+					Cycle = 340;
+			}
+
+			if (Scanline < 240) // -1..239
+			{
+				if (Cycle >= 0)
+				{
+					switch ((Cycle - 1) & 0x7) // cycles 0 is idle
+					{
+						case 1: // tile ID fetch
+							RenderingNametableFetch = Memory[0x2000 | (CurrentVramAddressV & 0x0fff)];
+							break;
+
+						case 3: // tile color attribute
+							RenderingAttributeFetch = Memory[0x23c0     // attribute table start
+								| (CurrentVramAddressV & 0x0c00)        // nametable ID
+								| ((CurrentVramAddressV >> 4) & 0x38)   // high 3 bits of coarse Y
+								| ((CurrentVramAddressV >> 2) & 0x07)]; // high 3 bits of coarse X
+
+							// prematurely select the palette, makes things simpler
+							RenderingAttributeFetch >>= (((CurrentVramAddressV >> 4) & 1) << 1) + ((CurrentVramAddressV >> 1) & 1);
+
+							break;
+
+						case 5: // tile pattern lower byte
+							RenderingPatternLowerFetch = Memory[0x0000
+								| (Control.BackgroundAddress ? 0x1000 : 0) // pattern memory select
+								| (RenderingNametableFetch << 4)           // tile ID * 16 (because a tile is 16 bytes in the pattern memory)
+								| (CurrentVramAddressV >> 12)];            // fineY
+							break;
+
+						case 7: // tile pattern upper byte
+								// NOTE: this fetch happens on the last cycle of each scanline and will be skipped
+								// on the pre-render scanline on odd frames because that cycle is skipped
+							RenderingPatternUpperFetch = Memory[0x0000
+								| (Control.BackgroundAddress ? 0x1000 : 0) // pattern memory select
+								| (RenderingNametableFetch << 4)           // tile ID * 16 (because a tile is 16 bytes in the pattern memory)
+								| (CurrentVramAddressV >> 12)              // fineY
+								| (0b1000)];                               // + 8 (for the upper byte)
+							break;
+
+						default:
+							break;
+					}
+				}
+
+				if (Cycle is >= 1 and <= 256 or >= 321 and <= 336) // cycles 1..256, 321..336
+				{
+					BgPatternShifterLower.Whole <<= 1;
+					BgPatternShifterUpper.Whole <<= 1;
+					BgAttributeShifter.Whole <<= 2; // NOTE: the 2 8-bit attribute shifters have been combined into a single 16-bit shifter
+				}
+
+				// increment coarse X
+				if ((Cycle & 0x7) == 0 && Cycle is >= 8 and <= 248 or >= 328) // cycles 8, 16, 24 ... 256, 328, 336
+					IncrementAddressVHorizontalCoarse();
+
+				// reload shifters
+				if ((Cycle & 0x7) == 1 && Cycle is >= 9 and <= 257 or >= 329) // cycles 9, 17, 25 ... 257, 329, 337
+				{
+					BgPatternShifterLower.Lower = RenderingPatternLowerFetch;
+					BgPatternShifterUpper.Lower = RenderingPatternUpperFetch;
+					BgAttributeShifter.Lower = RenderingAttributeFetch;
+				}
+
+				if (Cycle == 256) // go down at end of scanline
+					IncrementAddressVVerticalFine();
+				else if (Cycle == 257) // copy horizontal bits from T to V
+					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7be0) | (AddressT.Whole & 0x041f));
+			}
+
+			if (Scanline is >= 0 and < 240)
+			{
+				if (Cycle is >= 1 and <= 256)
+				{
+					int patternBitmask = 1 << (7 - FineScrollX);
+
+					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1) | (BgPatternShifterLower.Upper & patternBitmask);
+					int palette = BgAttributeShifter.Upper;
+
+					InterBuffer[Cycle - 1, Scanline] = Memory[0x3f00
+						| (palette << 2)
+						| (color)];
+				}
+			}
+			else if (Scanline == 241)
+			{
+				if (Cycle == 1)
+				{
+					Status.VerticalBlank = true;
 					IsFrameReady = true;
 				}
 			}
 
-			// vblank start
-			if (Scanline == 241 && Cycle == 1)
+			// all scanlines, specific cycles
+			if (Cycle == 257)
 			{
-				Status.VerticalBlank = true;
-				Status.Sprite0Hit = false;
-				if (Control.GenerateNmi)
-					NmiRaiser?.Invoke();
+				if (isRenderingEnabled)
+					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7be0) | (AddressT.Whole & 0x041f));
 			}
 
-			// vblank end
-			if (Scanline == 261 && Cycle == 1)
-				Status.VerticalBlank = false;
+			// cycle and scanline counting
+			Cycle++;
+
+			if (Cycle > 340)
+			{
+				Cycle = 0;
+				Scanline++;
+
+				if (Scanline > 260)
+				{
+					Scanline = -1;
+				}
+			}
+		}
+
+		private void IncrementAddressVHorizontalCoarse()
+		{
+			if ((CurrentVramAddressV & 0x001f) == 31) // if coarse X == 31
+			{
+				CurrentVramAddressV &= ~0x001f;
+				CurrentVramAddressV ^= ~0x0400;
+			}
+			else
+				CurrentVramAddressV++;
+		}
+
+		private void IncrementAddressVVerticalFine()
+		{
+			if ((CurrentVramAddressV & 0x7000) != 0x7000)          // fine Y < 7
+				CurrentVramAddressV += 0x1000;                     // increment fine Y
+			else
+			{
+				CurrentVramAddressV &= ~0x7000;                    // set fine Y to 0
+				int coarseY = (CurrentVramAddressV & 0x03e0) >> 5; // coarse Y
+
+				if (coarseY == 29)
+				{
+					coarseY = 0;                                   // set coarse Y to 0
+					CurrentVramAddressV ^= 0x8000;                 // switch vertical nametable
+				}
+				else if (coarseY == 31)
+					coarseY = 0;                                   // set coarse Y to 0, don't switch nametables
+				else
+					coarseY++;                                     // increment coarse Y
+
+				CurrentVramAddressV = (ushort)((CurrentVramAddressV & ~0x03e0) | (coarseY << 5));
+			}
 		}
 
 		public static byte[] RenderInterFrame(byte[,] interFrame, int scale)
@@ -287,7 +468,7 @@ namespace Nesk
 				for (int x = 0; x < 256 * scale; x++)
 				{
 					int fixedY = 240 * scale - 1 - y;
-					var color = ColorPalette[interFrame[x / scale, y / scale] & 0x3f];
+					var color = MasterPalette[interFrame[x / scale, y / scale] & 0x3f];
 					buffer[start + (fixedY * 256 * scale + x) * 3 + 0] = color.B; // B
 					buffer[start + (fixedY * 256 * scale + x) * 3 + 1] = color.G; // G
 					buffer[start + (fixedY * 256 * scale + x) * 3 + 2] = color.R; // R
@@ -299,6 +480,10 @@ namespace Nesk
 
 		public byte[,] GetFrame()
 		{
+			IsFrameReady = false;
+			return InterBuffer;
+
+			/*
 			if (IsFrameReady)
 			{
 				IsFrameReady = false;
@@ -346,6 +531,7 @@ namespace Nesk
 			}
 			else
 				return null;
+			*/
 		}
 
 		public byte[,] GetPatternMemoryAsFrame(int palette)
@@ -458,6 +644,18 @@ namespace Nesk
 			}
 
 			return InterBuffer;
+		}
+
+		public byte[] DumpPaletteMemory()
+		{
+			byte[] paletteMemory = new byte[32];
+
+			for (int i = 0x3f00; i <= 0x3f1f; i++)
+			{
+				paletteMemory[i & 0x1f] = Memory[i];
+			}
+
+			return paletteMemory;
 		}
 	}
 }

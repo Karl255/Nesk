@@ -4,8 +4,8 @@ namespace Nesk.Mappers.PPUMappers
 {
 	public class PpuMapper000 : PpuMapper
 	{
-		private byte[] Chr { get; init; }
-		private bool IsRam { get; init; } = false;
+		private readonly byte[] Chr;
+		private readonly bool IsRam = false;
 
 		public PpuMapper000(Cartridge cartridge)
 		{
