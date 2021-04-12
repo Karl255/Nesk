@@ -26,9 +26,16 @@ namespace Nesk
 		private DoubleRegister BgAttributeShifterLower = new(0);
 		private DoubleRegister BgAttributeShifterUpper = new(0);
 
-		private readonly byte[] SpritePatternShifters = new byte[8];
+		private readonly byte[] SpritePatternShiftersUpper = new byte[8];
+		private readonly byte[] SpritePatternShiftersLower = new byte[8];
 		private readonly byte[] SpriteAttributeLatches = new byte[8];
 		private readonly byte[] SpriteXPositionCounters = new byte[8];
+		private int SpriteIndex = 0;
+		private int SecondaryOamIndex = 0;
+		private bool LineHasSprite0 = false;
+		private bool IsSprite0Rendered;
+		private bool IsSpriteEvaluationDone = false;
+		private int RenderingSpriteIndex = 0;
 
 		private byte OamAddress = 0x00;
 		public bool IsOamDma { get; private set; } = false;
@@ -286,6 +293,11 @@ namespace Nesk
 		{
 			bool isRenderingEnabled = Mask.ShowBackground || Mask.ShowSprites || true;
 
+			if (Scanline == 41 && Cycle == 21)
+			{
+
+			}
+
 			// scanline specific
 			if (Scanline == -1) // -1 or 261 (pre-render scanline)
 			{
@@ -304,7 +316,7 @@ namespace Nesk
 
 			if (Scanline < 240) // -1..239
 			{
-				if (Cycle > 0)
+				if (Cycle is > 0 and <= 256 or >= 321)
 				{
 					switch ((Cycle - 1) & 0x7) // cycles 0 is idle
 					{
@@ -375,18 +387,146 @@ namespace Nesk
 
 			if (Scanline is >= 0 and < 240) // visible scanlines
 			{
-				if (Cycle is >= 1 and <= 256)
+				if (Cycle == 0) // variable reset
 				{
-					int patternBitmask = 0x80 >> FineScrollX;
+					SpriteIndex = 0;
+					SecondaryOamIndex = 0;
+					IsSpriteEvaluationDone = false;
+					LineHasSprite0 = false;
 
-					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1 >> (7 - FineScrollX))
-						| ((BgPatternShifterLower.Upper & patternBitmask) >> (7 - FineScrollX));
-					int palette = ((BgAttributeShifterUpper.Upper & patternBitmask) << 1 >> (7- FineScrollX))
-						| ((BgAttributeShifterLower.Upper & patternBitmask) >> (7 - FineScrollX));
+					for (int i = 0; i < 8; i++)
+						SpriteXPositionCounters[i] = 0xff;
+				}
 
-					InterBuffer[Cycle - 1, Scanline] = color == 0
+				// secondary OAM initialization
+				else if (Cycle <= 64) // cycles 1..64
+					SecondaryOam[(Cycle - 1) & 0x1f] = 0xff;
+
+				// sprite evaluation
+				else if (Cycle <= 256) // cycles 65..256
+				{
+					if (SecondaryOamIndex < 8 && !IsSpriteEvaluationDone)
+					{
+						if ((Cycle & 1) == 1) // odd cycles
+						{
+							// everything is happenig in the odd cycle because of simplyicity
+							int y = SecondaryOam[4 * SecondaryOamIndex] = Oam[4 * SpriteIndex];
+
+							if (y <= Scanline && y > Scanline - (Control.SpriteHeight ? 16 : 8)) // is the sprite within range
+							{
+								SecondaryOam[4 * SecondaryOamIndex + 1] = Oam[4 * SpriteIndex + 1];
+								SecondaryOam[4 * SecondaryOamIndex + 2] = Oam[4 * SpriteIndex + 2];
+								SecondaryOam[4 * SecondaryOamIndex + 3] = Oam[4 * SpriteIndex + 3];
+								SecondaryOamIndex++;
+
+								if (SpriteIndex == 0)
+									LineHasSprite0 = true;
+							}
+
+							SpriteIndex++;
+
+							if (SpriteIndex == 64 || SecondaryOamIndex == 8) // if it overflowed
+							{
+								IsSpriteEvaluationDone = true;
+
+								// checking for sprite overflow
+								// the PPU has a bug in the sprite overflow detection where m is incremented (though it shoudln't)
+								// so the incorrect data is fetched for the Y position
+								if (SecondaryOamIndex == 0)
+								{
+									int m = 0;
+									for (int n = 0; n < 64; n++)
+									{
+										int y2 = Oam[4 * n + m];
+
+										if (y2 <= Scanline && y2 > Scanline - (Control.SpriteHeight ? 16 : 8))
+										{
+											Status.SpriteOverflow = true;
+											break;
+										}
+										m = (m + 1) & 0x3;
+									}
+								}
+							}
+						}
+					}
+				}
+				else if (Cycle <= 320)
+				{
+					int currentSpriteIndex = (int)((Cycle - 257) >> 3);
+
+					switch ((Cycle - 1) & 0x7)
+					{
+						case 5:
+							SpritePatternShiftersLower[currentSpriteIndex] = FetchSpritePattern(currentSpriteIndex, 0);
+							break;
+
+						case 7:
+							SpritePatternShiftersUpper[currentSpriteIndex] = FetchSpritePattern(currentSpriteIndex, 8);
+							break;
+
+						default:
+							break;
+					}
+				}
+
+				// final pixel processing
+
+				if (Cycle == 0)
+					RenderingSpriteIndex = 0;
+				else if (Cycle <= 256) // cycles 1..256
+				{
+					int spriteColor = 0;
+					int spritePalette = 0;
+					int spritePriority = 0;
+
+					for (int i = 0; i < SecondaryOamIndex; i++) // only go through the indecies which have been filled
+					{
+						int spriteX = SecondaryOam[4 * i + 3];
+						if (spriteX >= Cycle && spriteX < Cycle + 8)
+						{
+							int shiftAmount = 7 - ((int)Cycle - spriteX);
+							int tempColor = ((SpritePatternShiftersUpper[i] << 1 >> shiftAmount) & 0b10)
+								| ((SpritePatternShiftersLower[i] >> shiftAmount) & 0b01);
+
+							if (spriteColor == 0)
+							{
+								spriteColor = tempColor;
+								spritePalette = SecondaryOam[4 * i + 2] & 0b11;
+								spritePriority = (SecondaryOam[4 * i + 2] >> 5) & 1;
+							}
+							else
+								break;
+						}
+
+						if (LineHasSprite0 && i == 0) // detect if this is sprite 0
+							IsSprite0Rendered = true;
+					}
+
+
+					int backgroundPatternBitmask = 0x80 >> FineScrollX;
+
+					int backgroundColor = ((BgPatternShifterUpper.Upper & backgroundPatternBitmask) << 1 >> (7 - FineScrollX))
+						| ((BgPatternShifterLower.Upper & backgroundPatternBitmask) >> (7 - FineScrollX));
+					int backgroundPalette = ((BgAttributeShifterUpper.Upper & backgroundPatternBitmask) << 1 >> (7- FineScrollX))
+						| ((BgAttributeShifterLower.Upper & backgroundPatternBitmask) >> (7 - FineScrollX));
+
+
+					InterBuffer[Cycle - 1, Scanline] = backgroundColor == 0
 						? Memory[0x3f00]
-						: Memory[0x3f00 | (palette << 2) | (color)];
+						: Memory[0x3f00 | (backgroundPalette << 2) | (backgroundColor)];
+
+					// I've put <= 0 instead od simply 0, because, with <= 0, the compiler can better optimize the pattern matching
+					// an alternative would be using uint instead of int
+					InterBuffer[Cycle - 1, Scanline] = Memory[0x3f00
+						| (backgroundColor, spriteColor, spritePriority) switch
+						{
+							(<= 0, <= 0, _) => 0,                                                    // background color
+							(<= 0,  > 0, _) => 0b10000 | (spritePalette     << 2) | spriteColor,     // sprite color
+							( > 0, <= 0, _) =>           (backgroundPalette << 2) | backgroundColor, // background tile color
+							( > 0,  > 0, 0) => 0b10000 | (spritePalette     << 2) | spriteColor,     // sprite color
+							_               =>           (backgroundPalette << 2) | backgroundColor, // background tile color
+						}];
 				}
 			}
 			else if (Scanline == 241)
@@ -452,6 +592,66 @@ namespace Nesk
 
 				CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7c1f) | (coarseY << 5));
 			}
+		}
+
+		private byte FetchSpritePattern(int spriteIndex, int offset)
+		{
+			bool isVerticallyMirrored = (SecondaryOam[4 * spriteIndex + 2] & 0x80) != 0;
+			byte spriteY = SecondaryOam[4 * spriteIndex];
+			byte spritePatternID = SecondaryOam[4 * spriteIndex + 1];
+
+			int address;
+
+			if (Control.SpriteHeight) // 8x16 sprites
+			{
+				if (isVerticallyMirrored) // vertical mirroring
+				{
+					if (Scanline - spriteY < 8) // top tile
+					{
+						address = ((spritePatternID & 1) << 12)
+						   | (((spritePatternID & 0xfe) | 1) << 4)
+						   | (7 - (Scanline - spriteY) + offset);
+					}
+					else // bottom tile
+					{
+						address = ((spritePatternID & 1) << 12)
+							| ((spritePatternID & 0xfe) << 4)
+							| (7 - (Scanline - spriteY - 8) + offset);
+					}
+				}
+				else // no vertical mirroring
+				{
+					if (Scanline - spriteY < 8) // top tile
+					{
+						address = ((spritePatternID & 1) << 12)
+							| ((spritePatternID & 0xfe) << 4)
+							| (Scanline - spriteY + offset);
+					}
+					else
+					{
+						address = ((spritePatternID & 1) << 12)
+							| ((spritePatternID & 0xfe) << 4)
+							| (Scanline - spriteY - 8 + offset);
+					}
+				}
+			}
+			else // 8x8 sprites
+			{
+				if (isVerticallyMirrored) // vertical mirroring
+				{
+					address = (spritePatternID << 12)
+						| (spritePatternID << 4)
+						| (7 - (Scanline - spriteY + offset));
+				}
+				else // no vertical mirroring
+				{
+					address = (spritePatternID << 12)
+						| (spritePatternID << 4)
+						| (Scanline - spriteY + offset);
+				}
+			}
+
+			return Memory[address];
 		}
 
 		public static byte[] RenderInterFrame(byte[,] interFrame, int scale)
