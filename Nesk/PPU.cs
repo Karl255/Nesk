@@ -23,7 +23,8 @@ namespace Nesk
 
 		private DoubleRegister BgPatternShifterLower = new(0);
 		private DoubleRegister BgPatternShifterUpper = new(0);
-		private DoubleRegister BgAttributeShifter = new(0);    // combined 2 8-bit shifters into a single 16 bit shifter
+		private DoubleRegister BgAttributeShifterLower = new(0);
+		private DoubleRegister BgAttributeShifterUpper = new(0);
 
 		private readonly byte[] SpritePatternShifters = new byte[8];
 		private readonly byte[] SpriteAttributeLatches = new byte[8];
@@ -164,7 +165,7 @@ namespace Nesk
 							DataBuffer = Memory[0x2000 | AddressT.Whole & 0x0fff];
 						}
 
-						AddressT.Whole = (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
+						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 
 						if (Scanline is <= 240) // is rendering
 						{
@@ -243,7 +244,7 @@ namespace Nesk
 
 					case 7: // data
 						Memory[AddressT.Whole] = value;
-						AddressT.Whole = (ushort)((AddressT.Whole + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
+						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 
 						if (Scanline is <= 240) // is rendering
 						{
@@ -251,7 +252,7 @@ namespace Nesk
 							IncrementAddressVVerticalFine();
 						}
 						else
-							CurrentVramAddressV = (ushort)((CurrentVramAddressV + (Control.IncrementMode ? 32 : 1)) & 0x7fff);
+							CurrentVramAddressV += (ushort)(Control.IncrementMode ? 32 : 1);
 						break;
 
 					case 0x14: // OAM DMA
@@ -297,12 +298,8 @@ namespace Nesk
 				}
 
 				// during these cycles, continuosly copy over the vertical bits from T to V
-				if (isRenderingEnabled && Cycle is >= 280 and <= 304)
+				if (Cycle is >= 280 and <= 304)
 					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x041f) | (AddressT.Whole & 0x7be0));
-
-				// TODO: make this skip (0, 0) instead of (340, -1)
-				if (IsOddFrame && Cycle == 339) // skip last cycle on odd frames
-					Cycle = 340;
 			}
 
 			if (Scanline < 240) // -1..239
@@ -322,7 +319,7 @@ namespace Nesk
 								| ((CurrentVramAddressV >> 2) & 0x07)]; // high 3 bits of coarse X
 
 							// prematurely select the palette, makes things simpler
-							RenderingAttributeFetch >>= ((CurrentVramAddressV >> 6) & 0x2) + ((CurrentVramAddressV >> 2) & 1);
+							RenderingAttributeFetch >>= ((CurrentVramAddressV >> 4) & 0x4) + ((CurrentVramAddressV) & 2);
 
 							break;
 
@@ -330,7 +327,7 @@ namespace Nesk
 							RenderingPatternLowerFetch = Memory[0x0000
 								| (Control.BackgroundAddress ? 0x1000 : 0) // pattern memory select
 								| (RenderingNametableFetch << 4)           // tile ID * 16 (because a tile is 16 bytes in the pattern memory)
-								| (CurrentVramAddressV >> 12)];            // fineY
+								| ((CurrentVramAddressV >> 12) & 0x7)];    // fineY
 							break;
 
 						case 7: // tile pattern upper byte
@@ -339,7 +336,7 @@ namespace Nesk
 							RenderingPatternUpperFetch = Memory[0x0000
 								| (Control.BackgroundAddress ? 0x1000 : 0) // pattern memory select
 								| (RenderingNametableFetch << 4)           // tile ID * 16 (because a tile is 16 bytes in the pattern memory)
-								| (CurrentVramAddressV >> 12)              // fineY
+								| ((CurrentVramAddressV >> 12) & 0x7)      // fineY
 								| (0b1000)];                               // + 8 (for the upper byte)
 							break;
 
@@ -352,28 +349,31 @@ namespace Nesk
 				{
 					BgPatternShifterLower.Whole <<= 1;
 					BgPatternShifterUpper.Whole <<= 1;
-					BgAttributeShifter.Whole <<= 2; // NOTE: the 2 8-bit attribute shifters have been combined into a single 16-bit shifter
+					BgAttributeShifterLower.Whole <<= 1;
+					BgAttributeShifterUpper.Whole <<= 1;
 				}
-
-				// increment coarse X
-				if ((Cycle & 0x7) == 0 && Cycle is >= 8 and <= 248 or >= 328) // cycles 8, 16, 24 ... 256, 328, 336
-					IncrementAddressVHorizontalCoarse();
 
 				// reload shifters
 				if ((Cycle & 0x7) == 1 && Cycle is >= 9 and <= 257 or >= 329) // cycles 9, 17, 25 ... 257, 329, 337
 				{
 					BgPatternShifterLower.Lower = RenderingPatternLowerFetch;
 					BgPatternShifterUpper.Lower = RenderingPatternUpperFetch;
-					BgAttributeShifter.Lower = RenderingAttributeFetch;
+					BgAttributeShifterLower.Lower = (byte)((RenderingAttributeFetch & 0b01) != 0 ? 0xff : 0);
+					BgAttributeShifterUpper.Lower = (byte)((RenderingAttributeFetch & 0b10) != 0 ? 0xff : 0);
 				}
+
+				// increment coarse X
+				if ((Cycle & 0x7) == 0 && Cycle is >= 8 and <= 248 or >= 328) // cycles 8, 16, 24 ... 248, 328, 336
+					IncrementAddressVHorizontalCoarse();
 
 				if (Cycle == 256) // go down at end of scanline
 					IncrementAddressVVerticalFine();
 				else if (Cycle == 257) // copy horizontal bits from T to V
 					CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7be0) | (AddressT.Whole & 0x041f));
+
 			}
 
-			if (Scanline is >= 0 and < 240)
+			if (Scanline is >= 0 and < 240) // visible scanlines
 			{
 				if (Cycle is >= 1 and <= 256)
 				{
@@ -381,11 +381,12 @@ namespace Nesk
 
 					int color = ((BgPatternShifterUpper.Upper & patternBitmask) << 1 >> (7 - FineScrollX))
 						| ((BgPatternShifterLower.Upper & patternBitmask) >> (7 - FineScrollX));
-					int palette = BgAttributeShifter.Upper;
+					int palette = ((BgAttributeShifterUpper.Upper & patternBitmask) << 1 >> (7- FineScrollX))
+						| ((BgAttributeShifterLower.Upper & patternBitmask) >> (7 - FineScrollX));
 
-					InterBuffer[Cycle - 1, Scanline] = Memory[0x3f00
-						| (palette << 2)
-						| (color)];
+					InterBuffer[Cycle - 1, Scanline] = color == 0
+						? Memory[0x3f00]
+						: Memory[0x3f00 | (palette << 2) | (color)];
 				}
 			}
 			else if (Scanline == 241)
@@ -413,13 +414,17 @@ namespace Nesk
 					Scanline = -1;
 				}
 			}
+
+			// skip first cycle on odd frames
+			if (IsOddFrame && Cycle == 0 && Scanline == 0)
+				Cycle = 1;
 		}
 
 		private void IncrementAddressVHorizontalCoarse()
 		{
 			if ((CurrentVramAddressV & 0x001f) == 31) // if coarse X == 31
 			{
-				CurrentVramAddressV &= ~0x001f;       // reset coarse X to 0
+				CurrentVramAddressV &= 0x7fe0;        // reset coarse X to 0
 				CurrentVramAddressV ^= 0x0400;        // switch horizontal nametable
 			}
 			else
@@ -432,7 +437,7 @@ namespace Nesk
 				CurrentVramAddressV += 0x1000;                     // increment fine Y
 			else
 			{
-				CurrentVramAddressV &= ~0x7000;                    // set fine Y to 0
+				CurrentVramAddressV &= 0x0fff;                     // set fine Y to 0
 				int coarseY = (CurrentVramAddressV & 0x03e0) >> 5; // coarse Y
 
 				if (coarseY == 29)
@@ -445,7 +450,7 @@ namespace Nesk
 				else
 					coarseY++;                                     // increment coarse Y
 
-				CurrentVramAddressV = (ushort)((CurrentVramAddressV & ~0x03e0) | (coarseY << 5));
+				CurrentVramAddressV = (ushort)((CurrentVramAddressV & 0x7c1f) | (coarseY << 5));
 			}
 		}
 
