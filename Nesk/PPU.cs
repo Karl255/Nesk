@@ -151,7 +151,10 @@ namespace Nesk
 						break;
 
 					case 4: // OAM Data
-						returnedData = Oam[OamAddress];
+						if (Cycle <= 64)
+							returnedData = 0xff;
+						else
+							returnedData = Oam[OamAddress];
 						break;
 
 					case 7: // data
@@ -174,7 +177,7 @@ namespace Nesk
 
 						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 
-						if (Scanline is <= 240) // is rendering
+						if (Scanline <= 240) // is rendering
 						{
 							IncrementAddressVHorizontalCoarse();
 							IncrementAddressVVerticalFine();
@@ -230,7 +233,7 @@ namespace Nesk
 						else
 						{
 							AddressT.Lower = (byte)((AddressT.Lower & 0xe0) | (value >> 3)); // set coarse X
-							FineScrollX = (byte)(value & 0x3);
+							FineScrollX = (byte)(value & 0x7);
 						}
 
 						RegisterWriteLatch = !RegisterWriteLatch;
