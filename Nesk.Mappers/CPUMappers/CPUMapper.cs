@@ -56,7 +56,7 @@ namespace Nesk.Mappers
 		{
 			byte value = (byte)(Controller1D0Input & 1);
 			Controller1D0Input >>= 1;
-			Controller1D0Input |= 0x80000000; // new bit is 1
+			Controller1D0Input |= 0xffffff00; // new bits are 1
 			return value;
 		}
 	}

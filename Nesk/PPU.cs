@@ -145,7 +145,7 @@ namespace Nesk
 				{
 					case 2: // status
 							// top 3 bytes exist, the bottom 5 don't, so static noise determines them
-						returnedData = (byte)(Status.Byte | (RegisterAccessNoise & 0x1f));
+						returnedData = (byte)Status.Byte;
 						Status.VerticalBlank = false;
 						RegisterWriteLatch = false; // reading from status resets the write latch for those 2 registers
 						break;
@@ -159,25 +159,25 @@ namespace Nesk
 
 					case 7: // data
 							// read "The PPUDATA read buffer (post-fetch)" http://wiki.nesdev.com/w/index.php/PPU_registers#PPUDATA
-						if (AddressT.Whole < 0x3f00)
+						if ((AddressT.Whole & 0x3fff) < 0x3f00)
 						{
 							// reading from CHR or nametables
 							// this reading is delayed and goes through a buffer
 							returnedData = DataBuffer;
-							DataBuffer = Memory[AddressT.Whole];
+							DataBuffer = Memory[AddressT.Whole & 0x3fff];
 						}
 						else
 						{
 							// reading from palette
 							// palette reading has is instant as it's made up of static RAM
-							returnedData = Memory[AddressT.Whole];
+							returnedData = Memory[AddressT.Whole & 0x3fff];
 							// the nametable is still read from the underlying mirrored address
 							DataBuffer = Memory[0x2000 | AddressT.Whole & 0x0fff];
 						}
 
 						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 
-						if (Scanline <= 240) // is rendering
+						if (Scanline is >= 0 and < 240 && (Mask.ShowBackground || Mask.ShowSprites)) // is rendering
 						{
 							IncrementAddressVHorizontalCoarse();
 							IncrementAddressVVerticalFine();
@@ -253,10 +253,10 @@ namespace Nesk
 						break;
 
 					case 7: // data
-						Memory[AddressT.Whole] = value;
+						Memory[AddressT.Whole & 0x3fff] = value;
 						AddressT.Whole += (ushort)(Control.IncrementMode ? 32 : 1);
 
-						if (Scanline is <= 240) // is rendering
+						if (Scanline is >= 0 and < 240 && (Mask.ShowBackground || Mask.ShowSprites)) // is rendering
 						{
 							IncrementAddressVHorizontalCoarse();
 							IncrementAddressVVerticalFine();
