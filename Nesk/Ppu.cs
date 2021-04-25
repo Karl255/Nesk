@@ -28,7 +28,6 @@ namespace Nesk
 
 		private readonly byte[] SpritePatternShiftersUpper = new byte[8];
 		private readonly byte[] SpritePatternShiftersLower = new byte[8];
-		private readonly byte[] SpriteAttributeLatches = new byte[8];
 		private readonly byte[] SpriteXPositionCounters = new byte[8];
 		private int SpriteIndex = 0;
 		private int SecondaryOamIndex = 0;
@@ -554,7 +553,9 @@ namespace Nesk
 
 				if (Scanline > 260)
 				{
+					// next frame
 					Scanline = -1;
+					IsOddFrame = !IsOddFrame;
 				}
 			}
 
