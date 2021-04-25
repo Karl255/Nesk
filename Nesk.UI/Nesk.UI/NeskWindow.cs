@@ -87,7 +87,6 @@ namespace Nesk.UI
 		public NeskWindow()
 		{
 			Title = "NESK";
-			//TODO: imeplement scaling of window
 			Clock = new UITimer();
 			Clock.Elapsed += ClockTickHandler;
 

@@ -70,6 +70,7 @@ namespace Nesk.Mappers
 
 				else
 					// non-standard or archaic iNES (not supported)
+					// TODO: add support for archaic/basic iNES
 					throw new Exception("Malformed iNES fileData or archaic format");
 
 				ParseNESCommon(fileData);
