@@ -1,6 +1,6 @@
 ﻿namespace Nesk.Mappers
 {
-	public enum ExpansinDevice
+	public enum ExpansionDevice
 	{
 		Unspecified,
 		StandardControllers,

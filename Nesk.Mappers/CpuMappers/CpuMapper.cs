@@ -12,6 +12,9 @@ namespace Nesk.Mappers
 		private readonly Func<uint> ReadInputState;
 		private uint Controller1D0Input = 0xffffffff;
 
+		public int AddressableSize => 64 * 1024;
+		public bool IsReadonly { get; set; }
+
 		public CpuMapper(IAddressable<byte> ppu, IAddressable<byte> apu, Func<uint> readInputCallback)
 		{
 			Ppu = ppu;
@@ -41,9 +44,6 @@ namespace Nesk.Mappers
 				_ => 0
 			};
 		}
-
-		public int AddressableSize => 64 * 1024;
-		public bool IsReadonly { get; set; }
 
 		// takes a snapshot of the controllers, basically emulates the shift register
 		private byte TakeControllerSnapshot()

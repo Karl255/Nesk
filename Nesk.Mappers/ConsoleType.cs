@@ -6,7 +6,7 @@
 		VsSystem,
 		Playchoice10,
 		FamicloneDecimalMode,
-		VT01Monoschome,
+		VT01Monochrome,
 		VT01RedCyan,
 		VT02,
 		VT03,

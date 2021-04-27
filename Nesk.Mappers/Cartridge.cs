@@ -19,7 +19,7 @@ namespace Nesk.Mappers
 		public byte[] ChrRom { get; private set; }
 		public int ChrRomSize { get; private set; } = 0;
 
-		// misc. ROM area, only used in few cases, mappers will further handle this (if they even get implemented)
+		// misc. ROM area, only used in few cases, mappers will further handle this
 		public byte[] TrailingData { get; private set; }
 		public int MiscROMCount { get; private set; }
 
@@ -39,7 +39,7 @@ namespace Nesk.Mappers
 
 		public VsPpuType VsPPUType { get; private set; }
 		public VsHardwareType VsHardwareType { get; private set; }
-		public ExpansinDevice DefaultExpansionDevice { get; private set; }
+		public ExpansionDevice DefaultExpansionDevice { get; private set; }
 
 		public CpuMapper CPUMapper { get; private set; }
 		public PpuMapper PPUMapper { get; private set; }
@@ -84,6 +84,17 @@ namespace Nesk.Mappers
 				throw new Exception("Unsupported format or not a ROM file");
 		}
 
+		private void ParseiNESOnly(byte[] fileData)
+		{
+			// http://wiki.nesdev.com/w/index.php/INES
+
+			// size in 8 kB chunks (0 still means 1 for compatibility)
+			PrgRamSize = (fileData[8] == 0 ? 1 : fileData[8]) * 8 * 1024;
+
+			TimingMode = (TimingMode)(fileData[0] & 1);
+			ConsoleType = (ConsoleType)(fileData[7] & 0x3);
+		}
+
 		private void ParseNES2Only(byte[] fileData)
 		{
 			// http://wiki.nesdev.com/w/index.php/NES_2.0
@@ -124,18 +135,7 @@ namespace Nesk.Mappers
 			}
 
 			MiscROMCount = fileData[14] & 2;
-			DefaultExpansionDevice = (ExpansinDevice)(fileData[15] & 0x3f);
-		}
-
-		private void ParseiNESOnly(byte[] fileData)
-		{
-			// http://wiki.nesdev.com/w/index.php/INES
-
-			// size in 8 kB chunks (0 still means 1 for compatibility)
-			PrgRamSize = (fileData[8] == 0 ? 1 : fileData[8]) * 8 * 1024;
-
-			TimingMode = (TimingMode)(fileData[0] & 1);
-			ConsoleType = (ConsoleType)(fileData[7] & 0x3);
+			DefaultExpansionDevice = (ExpansionDevice)(fileData[15] & 0x3f);
 		}
 
 		private void ParseNESCommon(byte[] fileData)

@@ -12,7 +12,7 @@ namespace Nesk.Mappers.CPUMappers
 
 		public CpuMapper000(IAddressable<byte> ppu, IAddressable<byte> apu, Cartridge cartridge, Func<uint> inputReadCallback) : base(ppu, apu, inputReadCallback)
 		{
-			// make sure the PRG-ROM size is 8k or 16k
+			// make sure the PRG-ROM size is 16k or 32k
 			if (cartridge.PrgRom.Length != 16 * 1024    // 16k
 				&& cartridge.PrgRom.Length != 32 * 1024) // 32k
 				throw new Exception($"Malformed ROM file: invalid PRG-ROM size, expectd 16384 or 32768, got {cartridge.PrgRom.Length}");

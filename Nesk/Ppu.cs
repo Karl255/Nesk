@@ -685,56 +685,6 @@ namespace Nesk
 		{
 			IsFrameReady = false;
 			return InterBuffer;
-
-			/*
-			if (IsFrameReady)
-			{
-				IsFrameReady = false;
-
-				for (int nametableY = 0; nametableY < 30; nametableY++)
-				{
-					for (int nametableX = 0; nametableX < 32; nametableX++)
-					{
-						int patternId = Memory[0x2000 + 32 * nametableY + nametableX + (Control.BackgroundAddress ? 0x1000 : 0)];
-
-						int palette = Memory[0x23c0 + nametableY / 4 * 8 + nametableX / 4] >> (nametableY / 2 % 2 * 2 + nametableX % 2);
-						var color0 = Memory[0x3f00];
-						var color1 = Memory[0x3f00 + palette * 4 + 1];
-						var color2 = Memory[0x3f00 + palette * 4 + 2];
-						var color3 = Memory[0x3f00 + palette * 4 + 3];
-
-						for (int spriteY = 0; spriteY < 8; spriteY++)
-						{
-							int rowByteLower = Memory[patternId * 16 + spriteY];
-							int rowByteUpper = Memory[patternId * 16 + spriteY + 0x0008];
-
-							for (int spriteX = 0; spriteX < 8; spriteX++)
-							{
-								int totalX = nametableX * 8 + spriteX;
-								int totalY = nametableY * 8 + spriteY;
-
-								int pixelColor = ((rowByteLower >> (7 - spriteX)) & 1)
-									| (((rowByteUpper >> (7 - spriteX)) & 1) << 1);
-
-								InterBuffer[totalX, totalY] = pixelColor switch
-								{
-									0 => color0,
-									1 => color1,
-									2 => color2,
-									3 => color3,
-									_ => 0
-								};
-							}
-						}
-
-					}
-				}
-
-				return InterBuffer;
-			}
-			else
-				return null;
-			*/
 		}
 
 		public byte[,] GetPatternMemoryAsFrame(int palette)

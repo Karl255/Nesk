@@ -56,7 +56,7 @@ namespace Nesk
 		///		</item>
 		/// </list>
 		/// </summary>
-		public bool SpriteHeight        { get; set; }
+		public bool SpriteHeight      { get; set; }
 
 		/// <summary>
 		/// Does essentially nothing.
@@ -70,7 +70,7 @@ namespace Nesk
 			IncrementMode     = (value & 0b0000_0100) != 0;
 			SpriteSection     = (value & 0b0000_1000) != 0;
 			BackgroundAddress = (value & 0b0001_0000) != 0;
-			SpriteHeight        = (value & 0b0010_0000) != 0;
+			SpriteHeight      = (value & 0b0010_0000) != 0;
 			MasterSlave       = (value & 0b0100_0000) != 0;
 			GenerateNmi       = (value & 0b1000_0000) != 0;
 		}
@@ -81,7 +81,7 @@ namespace Nesk
 				| (IncrementMode.ToInt()     << 2)
 				| (SpriteSection.ToInt()     << 3)
 				| (BackgroundAddress.ToInt() << 4)
-				| (SpriteHeight.ToInt()        << 5)
+				| (SpriteHeight.ToInt()      << 5)
 				| (MasterSlave.ToInt()       << 6)
 				| (GenerateNmi.ToInt()       << 7);
 
@@ -91,7 +91,7 @@ namespace Nesk
 				IncrementMode     = (value & 0b0000_0100) != 0;
 				SpriteSection     = (value & 0b0000_1000) != 0;
 				BackgroundAddress = (value & 0b0001_0000) != 0;
-				SpriteHeight        = (value & 0b0010_0000) != 0;
+				SpriteHeight      = (value & 0b0010_0000) != 0;
 				MasterSlave       = (value & 0b0100_0000) != 0;
 				GenerateNmi       = (value & 0b1000_0000) != 0;
 			}
